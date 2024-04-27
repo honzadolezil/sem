@@ -210,6 +210,7 @@ bool send_message(data_t *data, message *msg){
    pthread_mutex_lock(data->mtx);
    int ret = write(data->fd, msg_buf, size);
    pthread_mutex_unlock(data->mtx);
+   
    return size == ret;
 }
 

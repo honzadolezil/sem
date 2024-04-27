@@ -26,21 +26,19 @@ int main(){
         exit(1); // not coding style but whatever
     }
     // here comes comunications
-
-    
-
     while(!data.quit){
-        unsigned char c;
+        uint8_t c;
         int idx = 0, len = 0;
         uint8_t msg_buf[sizeof(message)];
-        int r = io_getc_timeout(data.fd, 0,&c); 
+        int r = io_getc_timeout(data.fd, 200,&c); 
         if (r == 1){
             if(idx == 0){
-                if (get_message_size(c, &len)){
+                if (get_message_size(data.fd, &len)){
                     msg_buf[idx++] = c; // first byte and check if it is a valid message
+                    fprintf(stdout, "message is %c\n", c);
                 }
                 else{
-                    fprintf(stderr, "Error: Unknown message type %d\n", c);
+                    fprintf(stderr, "Error: Unknown message type %c\n", c);
                 }
             }else{
                 msg_buf[idx++] = c;
@@ -69,7 +67,7 @@ int main(){
             }
         }
         else{
-            
+         // do nothing   
         }
     }
 
