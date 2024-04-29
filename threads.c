@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include <fcntl.h>
+
+
 #include <termios.h>
 #include <unistd.h> // for STDIN_FILENO
 
@@ -112,6 +115,15 @@ void* input_thread(void* d)
                period = PERIOD_MAX;
             }
             break;
+
+         case 'g':
+            {
+               message msg  = {.type = MSG_GET_VERSION};
+               send_message(data, &msg);
+               printf("message sent\n");
+
+            }
+            break;
       }
       if (data->alarm_period != period) {
          pthread_cond_signal(data->cond); // signal the output thread to refresh 
@@ -139,7 +151,8 @@ void* output_thread(void* d)
       fprintf(stderr, "Error: Unable to open the file %s\n", MY_DEVICE_OUT);
       exit(1);
    }
-   message msg  = {.type = MSG_STARTUP, .data.startup = { .message = "Hello"}};
+   message msg  = {.type = MSG_STARTUP, .data.startup = { .message = "Henlo"}};
+   send_message(data, &msg);
    send_message(data, &msg);
 
    if (io_putc(data->fd, 'i') != 1) { // sends init byte
@@ -150,14 +163,19 @@ void* output_thread(void* d)
    pthread_mutex_lock(data->mtx);
    data->is_serial_open = true;
 
-   while (!q) {
+   while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
+
+      /*
       if (io_putc(data->fd, 'a') != 1) { // sends init byte
          fprintf(stderr, "Error: unable to send a\n");
          data->quit = true;
       }
+      */
       fsync(data->fd); // sync the data
       q = data->quit;
+      if(q)
+         printf("bye");
       printf("\rAlarm time: %10i   Alarm counter: %10i", data->alarm_period, data->alarm_counter);
       fflush(stdout);
    }
@@ -183,6 +201,7 @@ void* alarm_thread(void* d)
       qq = data->is_serial_open;
       pthread_mutex_unlock(data->mtx);
    }
+   printf("pipe unlocked\n");
    static int r = 0;
    pthread_mutex_lock(data->mtx);
    bool q = data->quit;
@@ -206,12 +225,16 @@ void* alarm_thread(void* d)
 bool send_message(data_t *data, message *msg){
    uint8_t msg_buf[sizeof(message)];
    int size;
+   printf("sending\n");
    fill_message_buf(msg, msg_buf,sizeof(message), &size);
+   printf("filled");
    pthread_mutex_lock(data->mtx);
    int ret = write(data->fd, msg_buf, size);
    pthread_mutex_unlock(data->mtx);
-   
    return size == ret;
 }
 
+
+
 /* end of threads.c */
+
