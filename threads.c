@@ -173,27 +173,31 @@ void* output_thread(void* d)
    fsync(data->fd); // sync the data
    pthread_mutex_lock(data->mtx);
    data->is_serial_open = true;
-
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
       // here i will print output to the console
-
       uint8_t c;
       int idx = 0, len = 0;
       uint8_t msg_buf[sizeof(message)];
-      int r = io_getc_timeout(data->rd, 20,&c); 
+      
+      int r = io_getc_timeout(data->rd, 0,&c); 
+      if(c == MSG_VERSION){
+         printf("\r\n");
+         printf("Version message recieved:");
+      }
+      else
       if (r == 1){
          if(idx == 0){
                if (get_message_size(data->fd, &len)){
                   
                   msg_buf[idx++] = c; // first byte and check if it is a valid message
                   
-                  fprintf(stdout, "%c\n", c);
+                  printf("%c", c);
                   
 
                }
                else{
-                  fprintf(stderr, "Error: Unknown message type %c\n", c);
+                  fprintf(stderr, "Error: Unknown message type %c\r\n", c);
                }
          }else{
                msg_buf[idx++] = c;
@@ -202,24 +206,25 @@ void* output_thread(void* d)
          if(len != 0 && idx == len){
                message *msg = malloc(sizeof(message));
                if (msg == NULL){
-                  fprintf(stderr, "Error: Unable to allocate memory\n");
+                  fprintf(stderr, "Error: Unable to allocate memory\r\n");
                   exit(1);
                }
                if(parse_message_buf(msg_buf, len, msg)){
-                  
+                  printf("Message parsed\r\n");
                   // do something - save messages into buffer
                   for (size_t i = 0; i < len; i++){
-                     printf("%c", msg_buf[i]);
+                     //printf("%c", msg_buf[i]);
                   }
-                  printf("\n");
+                  printf("\r\n");
                   fflush(stdout);
                }
                else{
-                  fprintf(stderr, "Error: Unable to parse the message\n");
+                  fprintf(stderr, "Error: Unable to parse the message\r\n");
                   free(msg);
                }
          idx = len = 0;
          data->quit = true;
+
          }
       }
       else{
@@ -228,17 +233,13 @@ void* output_thread(void* d)
 
 
 
-      fsync(data->fd); // sync the data
       q = data->quit;
-      if(q)
-         printf("bye");
-      //printf("\rAlarm time: %10i   Alarm counter: %10i", data->alarm_period, data->alarm_counter);
       fflush(stdout);
    }
    pthread_mutex_unlock(data->mtx);
 
-   if (io_putc(data->fd, 'q') != 1) { // sends init byte
-      fprintf(stderr, "Error: Unable to send the end byte\n");
+   if (io_putc(data->fd, 'q') != 1) { // sends exit byte
+      fprintf(stderr, "Error: Unable to send the end byte\r\n");
       exit(1);
    }
    fsync(data->fd); // sync the data
@@ -258,7 +259,7 @@ void* alarm_thread(void* d)
       qq = data->is_serial_open;
       pthread_mutex_unlock(data->mtx);
    }
-   printf("pipe unlocked\n");
+   printf("pipe unlocked\r\n");
    static int r = 0;
    pthread_mutex_lock(data->mtx);
    bool q = data->quit;

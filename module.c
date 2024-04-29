@@ -52,7 +52,7 @@ int main(){
         uint8_t c;
         int idx = 0, len = 0;
         uint8_t msg_buf[sizeof(message)];
-        int r = io_getc_timeout(data->fd, 20,&c); 
+        int r = io_getc_timeout(data->fd, 0,&c); 
         if (c == MSG_GET_VERSION){//sends firmware info
             printf("sending version\n");
             message msg  = {.type = MSG_VERSION, .data.version = {'1','p','3'}};
