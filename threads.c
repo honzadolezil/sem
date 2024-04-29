@@ -176,7 +176,7 @@ void* output_thread(void* d)
 
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
-
+      // here i will print output to the console
       fsync(data->fd); // sync the data
       q = data->quit;
       if(q)
