@@ -36,6 +36,8 @@ int main(){
                 if (get_message_size(data.fd, &len)){
                     msg_buf[idx++] = c; // first byte and check if it is a valid message
                     fprintf(stdout, "message is %c\n", c);
+                    
+
                 }
                 else{
                     fprintf(stderr, "Error: Unknown message type %c\n", c);
@@ -43,7 +45,7 @@ int main(){
             }else{
                 msg_buf[idx++] = c;
             }
-
+            printf("Parsing\n");
             if(len != 0 && idx == len){
                 message *msg = malloc(sizeof(message));
                 if (msg == NULL){
@@ -51,6 +53,7 @@ int main(){
                     exit(1);
                 }
                 if(parse_message_buf(msg_buf, len, msg)){
+                    printf("Message parsed\n");
                     // do something - save messages into buffer
                     for (size_t i = 0; i < len; i++){
                         printf("%c", msg_buf[i]);

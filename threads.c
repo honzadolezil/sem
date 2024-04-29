@@ -100,6 +100,7 @@ void* input_thread(void* d)
       qq = data->is_serial_open;
       pthread_mutex_unlock(data->mtx);
    }
+   message msg2;
    while ((c = getchar()) != 'q') {
       pthread_mutex_lock(data->mtx);
       int period = data->alarm_period;
@@ -120,10 +121,11 @@ void* input_thread(void* d)
          case 'g':
             {
                pthread_mutex_unlock(data->mtx);
-               message msg2 = {.type = MSG_GET_VERSION};
+               msg2 = (message){.type = MSG_GET_VERSION};
                send_message(data, &msg2);
+               fsync(data->fd); // sync the data
                pthread_mutex_lock(data->mtx);
-               printf("message sent\n");
+               
 
             }
             break;
@@ -227,9 +229,9 @@ void* alarm_thread(void* d)
 bool send_message(data_t *data, message *msg){
    uint8_t msg_buf[sizeof(message)];
    int size;
-   printf("sending\n");
+   //printf("sending\n");
    fill_message_buf(msg, msg_buf,sizeof(message), &size);
-   printf("filled");
+   //printf("filled");
    pthread_mutex_lock(data->mtx);
    int ret = write(data->fd, msg_buf, size);
    pthread_mutex_unlock(data->mtx);
