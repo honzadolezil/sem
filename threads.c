@@ -15,6 +15,8 @@
 #include "prg_io_nonblock.h"
 
 #define MY_DEVICE_OUT "/tmp/pipe.out"
+#define MY_DEVICE_IN "/tmp/pipe.in"
+
 #define PERIOD_MIN 10
 #define PERIOD_MAX 2000
 #define PERIOD_STEP 10
@@ -24,7 +26,8 @@ typedef struct { // shared date structure
    int alarm_period;
    int alarm_counter;
    bool quit;
-   int fd;
+   int fd; //forwarding
+   int rd;// recieving
    bool is_serial_open; // if comunication established
    pthread_mutex_t *mtx;
    pthread_cond_t *cond;
@@ -121,12 +124,11 @@ void* input_thread(void* d)
          case 'g':
             {
                pthread_mutex_unlock(data->mtx);
-               msg2 = (message){.type = MSG_GET_VERSION};
+               msg2 = (message){.type = MSG_GET_VERSION,};
                send_message(data, &msg2);
                fsync(data->fd); // sync the data
                pthread_mutex_lock(data->mtx);
                
-
             }
             break;
       }
@@ -156,6 +158,11 @@ void* output_thread(void* d)
       fprintf(stderr, "Error: Unable to open the file %s\n", MY_DEVICE_OUT);
       exit(1);
    }
+   data->rd = io_open_read(MY_DEVICE_IN);
+   if (data->rd == EOF){
+        fprintf(stderr, "Error: Unable to open the file %s\n", MY_DEVICE_IN);
+        exit(1); // not coding style but whatever
+    }
    message msg  = {.type = MSG_STARTUP, .data.startup = { .message = "Henlo"}};
    send_message(data, &msg);
    
@@ -169,13 +176,7 @@ void* output_thread(void* d)
 
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
-
-      /*
-      if (io_putc(data->fd, 'a') != 1) { // sends init byte
-         fprintf(stderr, "Error: unable to send a\n");
-         data->quit = true;
-      }
-      */
+      
       fsync(data->fd); // sync the data
       q = data->quit;
       if(q)
@@ -191,6 +192,7 @@ void* output_thread(void* d)
    }
    fsync(data->fd); // sync the data
    io_close(data->fd);
+   io_close(data->rd);
    fprintf(stderr, "Exit output thread %lu\r\n", (unsigned long)pthread_self());
    return &r;
 }

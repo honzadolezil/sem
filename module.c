@@ -11,10 +11,12 @@
 #include "prg_io_nonblock.h" // send and recieves bites through pipe
 #include "messages.h"
 #define MY_DEVICE_OUT "/tmp/pipe.out"
+#define MY_DEVICE_IN "/tmp/pipe.in"
 
 typedef struct { // shared date structure;
    int alarm_counter;       
    int fd; // named pipe mkfifo /tmp/pipe.out
+   int rd;
    bool quit;
 } data_t;
 
@@ -25,16 +27,27 @@ int main(){
         fprintf(stderr, "Error: Unable to open the file %s\n", MY_DEVICE_OUT);
         exit(1); // not coding style but whatever
     }
+    data.rd= io_open_write(MY_DEVICE_IN);
+    if (data.rd == EOF) {
+      fprintf(stderr, "Error: Unable to open the file %s\n", MY_DEVICE_IN);
+      exit(1);
+   }
     // here comes comunications
     while(!data.quit){
         uint8_t c;
         int idx = 0, len = 0;
         uint8_t msg_buf[sizeof(message)];
         int r = io_getc_timeout(data.fd, 200,&c); 
+        if (c == MSG_GET_VERSION){
+            printf("version nextbro\n");
+        }
+        else
         if (r == 1){
             if(idx == 0){
                 if (get_message_size(data.fd, &len)){
+                    
                     msg_buf[idx++] = c; // first byte and check if it is a valid message
+                    
                     fprintf(stdout, "message is %c\n", c);
                     
 
@@ -45,7 +58,7 @@ int main(){
             }else{
                 msg_buf[idx++] = c;
             }
-            printf("Parsing\n");
+            
             if(len != 0 && idx == len){
                 message *msg = malloc(sizeof(message));
                 if (msg == NULL){
@@ -53,7 +66,7 @@ int main(){
                     exit(1);
                 }
                 if(parse_message_buf(msg_buf, len, msg)){
-                    printf("Message parsed\n");
+                    
                     // do something - save messages into buffer
                     for (size_t i = 0; i < len; i++){
                         printf("%c", msg_buf[i]);
@@ -79,5 +92,6 @@ int main(){
 
 
     io_close(data.fd); // closes the file named pipe 
+    io_close(data.rd);
     return 0;
 }
