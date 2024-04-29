@@ -94,6 +94,7 @@ void* input_thread(void* d)
    static int r = 0;
    int c;
    bool qq = false;
+   
    while((!qq)){ // until pipe isnt open - dont do anything
       pthread_mutex_lock(data->mtx); 
       qq = data->is_serial_open;
@@ -118,8 +119,10 @@ void* input_thread(void* d)
 
          case 'g':
             {
-               message msg  = {.type = MSG_GET_VERSION};
-               send_message(data, &msg);
+               pthread_mutex_unlock(data->mtx);
+               message msg2 = {.type = MSG_GET_VERSION};
+               send_message(data, &msg2);
+               pthread_mutex_lock(data->mtx);
                printf("message sent\n");
 
             }
@@ -153,8 +156,7 @@ void* output_thread(void* d)
    }
    message msg  = {.type = MSG_STARTUP, .data.startup = { .message = "Henlo"}};
    send_message(data, &msg);
-   send_message(data, &msg);
-
+   
    if (io_putc(data->fd, 'i') != 1) { // sends init byte
       fprintf(stderr, "Error: Unable to send the init byte\n");
       exit(1);
