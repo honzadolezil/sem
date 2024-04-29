@@ -177,6 +177,57 @@ void* output_thread(void* d)
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
       // here i will print output to the console
+
+      uint8_t c;
+      int idx = 0, len = 0;
+      uint8_t msg_buf[sizeof(message)];
+      int r = io_getc_timeout(data->rd, 20,&c); 
+      if (r == 1){
+         if(idx == 0){
+               if (get_message_size(data->fd, &len)){
+                  
+                  msg_buf[idx++] = c; // first byte and check if it is a valid message
+                  
+                  fprintf(stdout, "%c\n", c);
+                  
+
+               }
+               else{
+                  fprintf(stderr, "Error: Unknown message type %c\n", c);
+               }
+         }else{
+               msg_buf[idx++] = c;
+         }
+         
+         if(len != 0 && idx == len){
+               message *msg = malloc(sizeof(message));
+               if (msg == NULL){
+                  fprintf(stderr, "Error: Unable to allocate memory\n");
+                  exit(1);
+               }
+               if(parse_message_buf(msg_buf, len, msg)){
+                  
+                  // do something - save messages into buffer
+                  for (size_t i = 0; i < len; i++){
+                     printf("%c", msg_buf[i]);
+                  }
+                  printf("\n");
+                  fflush(stdout);
+               }
+               else{
+                  fprintf(stderr, "Error: Unable to parse the message\n");
+                  free(msg);
+               }
+         idx = len = 0;
+         data->quit = true;
+         }
+      }
+      else{
+         // do nothing   
+      }
+
+
+
       fsync(data->fd); // sync the data
       q = data->quit;
       if(q)

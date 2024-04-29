@@ -14,41 +14,59 @@
 #define MY_DEVICE_IN "/tmp/pipe.in"
 
 typedef struct { // shared date structure;
-   int alarm_counter;       
-   int fd; // named pipe mkfifo /tmp/pipe.out
-   int rd;
-   bool quit;
-} data_t;
+    int alarm_period;
+    int alarm_counter;
+    bool quit;
+    int fd; //forwarding
+    int rd;// recieving
+    bool is_serial_open; // if comunication established
+    pthread_mutex_t *mtx;
+    pthread_cond_t *cond;
+}   data_t;
+
+bool send_message(data_t *data, message *msg);
 
 int main(){
-    data_t data = { .alarm_counter = 0, .fd = EOF ,.quit = false };
-    data.fd = io_open_read(MY_DEVICE_OUT); // opens a named pipe
-    if (data.fd == EOF){
+    data_t *data = (data_t*)malloc(sizeof(data_t));
+    if (data == NULL) {
+        fprintf(stderr, "Error: Unable to allocate memory\n");
+        exit(1);
+    }
+    pthread_mutex_t mtx;
+    pthread_mutex_init(&mtx, NULL); // initialize mutex with default attributes
+    data->mtx = &mtx;                // make the mutex accessible from the shared data structure
+      
+    
+    data->fd = io_open_read(MY_DEVICE_OUT); // opens a named pipe
+    if (data->fd == EOF){
         fprintf(stderr, "Error: Unable to open the file %s\n", MY_DEVICE_OUT);
         exit(1); // not coding style but whatever
     }
-    data.rd= io_open_write(MY_DEVICE_IN);
-    if (data.rd == EOF) {
+    data->rd= io_open_write(MY_DEVICE_IN);
+    if (data->rd == EOF) {
       fprintf(stderr, "Error: Unable to open the file %s\n", MY_DEVICE_IN);
       exit(1);
    }
     // here comes comunications
-    while(!data.quit){
+    while(!data->quit){
         uint8_t c;
         int idx = 0, len = 0;
         uint8_t msg_buf[sizeof(message)];
-        int r = io_getc_timeout(data.fd, 200,&c); 
-        if (c == MSG_GET_VERSION){
-            printf("version nextbro\n");
+        int r = io_getc_timeout(data->fd, 20,&c); 
+        if (c == MSG_GET_VERSION){//sends firmware info
+            printf("sending version\n");
+            message msg  = {.type = MSG_VERSION, .data.version = {'1','p','3'}};
+            send_message(data,&msg);
+            fsync(data->rd);
         }
         if (c == 'q'){
-            data.quit = false;
+            data->quit = false;
             break;
         }
         else
         if (r == 1){
             if(idx == 0){
-                if (get_message_size(data.fd, &len)){
+                if (get_message_size(data->fd, &len)){
                     
                     msg_buf[idx++] = c; // first byte and check if it is a valid message
                     
@@ -83,7 +101,7 @@ int main(){
                     free(msg);
                 }
             idx = len = 0;
-            data.quit = true;
+            data->quit = true;
             }
         }
         else{
@@ -95,7 +113,17 @@ int main(){
 
 
 
-    io_close(data.fd); // closes the file named pipe 
-    io_close(data.rd);
+    io_close(data->fd); // closes the file named pipe 
+    io_close(data->rd);
     return 0;
+}
+
+bool send_message(data_t *data, message *msg){
+   uint8_t msg_buf[sizeof(message)];
+   int size;
+   fill_message_buf(msg, msg_buf,sizeof(message), &size);
+   pthread_mutex_lock(data->mtx);
+   int ret = write(data->rd, msg_buf, size);
+   pthread_mutex_unlock(data->mtx);
+   return size == ret;
 }
