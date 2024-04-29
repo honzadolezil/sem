@@ -41,6 +41,10 @@ int main(){
         if (c == MSG_GET_VERSION){
             printf("version nextbro\n");
         }
+        if (c == 'q'){
+            data.quit = false;
+            break;
+        }
         else
         if (r == 1){
             if(idx == 0){

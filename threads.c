@@ -176,12 +176,12 @@ void* output_thread(void* d)
 
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
-      
+
       fsync(data->fd); // sync the data
       q = data->quit;
       if(q)
          printf("bye");
-      printf("\rAlarm time: %10i   Alarm counter: %10i", data->alarm_period, data->alarm_counter);
+      //printf("\rAlarm time: %10i   Alarm counter: %10i", data->alarm_period, data->alarm_counter);
       fflush(stdout);
    }
    pthread_mutex_unlock(data->mtx);
