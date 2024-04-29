@@ -7,6 +7,7 @@
 #include <fcntl.h>
 
 
+#include <string.h>
 #include <termios.h>
 #include <unistd.h> // for STDIN_FILENO
 
@@ -182,12 +183,19 @@ void* output_thread(void* d)
       
       io_getc_timeout(data->rd, 0,&c); 
       if(c == MSG_VERSION){
-         printf("\r\n");
          printf("Version message recieved:");
-         for (size_t i = 0; i < 3; i++){
-            r = io_getc_timeout(data->rd, 0,&c);
-            printf("%c", c);
+         uint8_t msg_buf[sizeof(message)];
+         size_t len = 0;
+         while((io_getc_timeout(data->rd, 0,&c) == 1)){
+            msg_buf[len++] = c;
          }
+
+
+         for (size_t i = 0; i < len; i++){
+            r = io_getc_timeout(data->rd, 0,&c);
+            printf("%c", msg_buf[i]);
+         }
+         printf("\r\n");
 
 
 
