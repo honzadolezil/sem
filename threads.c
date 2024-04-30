@@ -132,6 +132,17 @@ void* input_thread(void* d)
                
             }
             break;
+         case 's':
+         {
+            pthread_mutex_unlock(data->mtx);
+            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = 0.1, .c_im = 0.2, .d_re = 0.3, .d_im = 0.4, .n = 100}};
+            send_message(data, &msg2);
+            fsync(data->fd); // sync the data
+            pthread_mutex_lock(data->mtx);
+            printf("computation message sent\r\n");
+         
+         }
+         break;
       }
       if (data->alarm_period != period) {
          pthread_cond_signal(data->cond); // signal the output thread to refresh 
@@ -189,17 +200,12 @@ void* output_thread(void* d)
          while((io_getc_timeout(data->rd, 0,&c) == 1)){
             msg_buf[len++] = c;
          }
-
-
          for (size_t i = 0; i < len; i++){
-            r = io_getc_timeout(data->rd, 0,&c);
+            if (msg_buf[i] == '&')
+               continue;
             printf("%c", msg_buf[i]);
          }
          printf("\r\n");
-
-
-
-
       }
    q = data->quit;
    fflush(stdout);

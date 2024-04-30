@@ -59,6 +59,19 @@ int main(){
             send_message(data,&msg);
             fsync(data->rd);
         }
+        if (c == MSG_SET_COMPUTE){
+            printf("recieved set compute\n");
+            //float c_re, c_im, d_re, d_im, n;
+            while((io_getc_timeout(data->fd, 0,&c) == 1)){
+                msg_buf[len++] = c;
+            }
+            get_message_size(data->fd, &len);
+            parse_message_buf(msg_buf, len, data->fd); // TODO
+            printf("message size = %d\r\n", len);
+            msg_buf[idx++] = c;
+            
+
+        }
         if (c == 'q'){
             data->quit = false;
             break;
@@ -70,7 +83,7 @@ int main(){
                     
                     msg_buf[idx++] = c; // first byte and check if it is a valid message
                     
-                    fprintf(stdout, "message is %c\n", c);
+                    //fprintf(stdout, "message is %c\n", c);
                     
 
                 }
