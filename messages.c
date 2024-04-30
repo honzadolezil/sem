@@ -119,7 +119,7 @@ bool parse_message_buf(const uint8_t *buf, int size, message *msg)
       cksum += buf[i];
    }
    bool ret = false;
-   int message_size;uint8_t msg_buf[sizeof(message)];
+   int message_size;
    if (
          size > 0 && cksum == 0xff && // sum of all bytes must be 255
          ((msg->type = buf[0]) >= 0) && msg->type < MSG_NBR &&

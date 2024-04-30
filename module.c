@@ -63,13 +63,20 @@ int main(){
         if (c == MSG_SET_COMPUTE){
             printf("recieved set compute\n");
             //float c_re, c_im, d_re, d_im, n;
-            while((io_getc_timeout(data->fd, 0,&c) == 1)){
-                msg_buf[len++] = c;
+            int i = 0;
+            msg_buf[i++] = MSG_SET_COMPUTE;
+            while((io_getc_timeout(data->fd, 100,&c) == 1)){
+                msg_buf[i++] = c;
             }
             message *msg = malloc(sizeof(message));
-            get_message_size(data->fd, &len);
-            uint8_t msg_buf[sizeof(message)];
-            parse_message_buf(msg_buf, len, msg); // TODO
+            msg->type = MSG_SET_COMPUTE;
+            get_message_size(MSG_SET_COMPUTE, &len);
+            if(!parse_message_buf(msg_buf, len, msg)){
+                fprintf(stderr, "Error: Unable to parse the message\n");
+                free(msg);
+                exit(1);
+            } // TODO
+            printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\n", msg->data.set_compute.c_re, msg->data.set_compute.c_im, msg->data.set_compute.d_re, msg->data.set_compute.d_im, msg->data.set_compute.n);
             printf("message size = %d\r\n", len); 
         
             free(msg);
