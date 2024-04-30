@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include <string.h>
 #include <termios.h>
 #include <unistd.h> // for STDIN_FILENO
 
@@ -65,12 +66,13 @@ int main(){
             while((io_getc_timeout(data->fd, 0,&c) == 1)){
                 msg_buf[len++] = c;
             }
+            message *msg = malloc(sizeof(message));
             get_message_size(data->fd, &len);
-            parse_message_buf(msg_buf, len, data->fd); // TODO
-            printf("message size = %d\r\n", len);
-            msg_buf[idx++] = c;
-            
-
+            uint8_t msg_buf[sizeof(message)];
+            parse_message_buf(msg_buf, len, msg); // TODO
+            printf("message size = %d\r\n", len); 
+        
+            free(msg);
         }
         if (c == 'q'){
             data->quit = false;
