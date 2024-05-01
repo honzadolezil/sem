@@ -82,10 +82,6 @@ int main(){
         }
     }
 
-
-
-
-
     io_close(data->fd); // closes the file named pipe 
     io_close(data->rd);
     return 0;
@@ -98,6 +94,9 @@ bool send_message(data_t *data, message *msg){
    pthread_mutex_lock(data->mtx);
    int ret = write(data->rd, msg_buf, size);
    pthread_mutex_unlock(data->mtx);
+   if(size != ret){
+        exit(1);
+   }
    return size == ret;
 }
 
@@ -115,8 +114,10 @@ message *buffer_parse(data_t *data, int message_type){
     get_message_size(message_type, &len);
     if(!parse_message_buf(msg_buf, len, msg)){
         fprintf(stderr, "Error: Unable to parse the message\n");
-        free(msg);
-        exit(1);
+        message msg2  = {.type = MSG_ERROR};
+        send_message(data,&msg2);
+        fsync(data->rd);
+        free(msg);  
     } 
     return msg;
 

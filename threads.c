@@ -122,7 +122,6 @@ void* input_thread(void* d)
                period = PERIOD_MAX;
             }
             break;
-
          case 'g':
             {
                pthread_mutex_unlock(data->mtx);
@@ -130,7 +129,6 @@ void* input_thread(void* d)
                send_message(data, &msg2);
                fsync(data->fd); // sync the data
                pthread_mutex_lock(data->mtx);
-               
             }
             break;
          case 's':
@@ -202,6 +200,9 @@ void* output_thread(void* d)
          printf("Version: %c. %c. %c\r\n", msg->data.version.major, msg->data.version.minor, msg->data.version.patch);
          free(msg);
          c = '\0';
+      }
+      if(c == MSG_ERROR){
+         printf("Module sent error\r\n");
       }
    q = data->quit;
    fflush(stdout);
