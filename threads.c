@@ -280,7 +280,7 @@ message *buffer_parse(data_t *data, int message_type){
     uint8_t msg_buf[sizeof(message)];
     int i = 0;
     msg_buf[i++] = message_type; // add the first byte 
-    while((io_getc_timeout(data->rd, 10,&c) == 1)){
+    while((io_getc_timeout(data->rd, 0,&c) == 1)){
         msg_buf[i++] = c;
     }
     message *msg = malloc(sizeof(message));
