@@ -150,9 +150,11 @@ void* input_thread(void* d)
       data->alarm_period = period;
       pthread_mutex_unlock(data->mtx);
    }
+
+   pthread_mutex_unlock(data->mtx);
+   data->quit = true;
    r = 1;
    pthread_mutex_lock(data->mtx);
-   data->quit = true;
    pthread_cond_broadcast(data->cond);
    pthread_mutex_unlock(data->mtx);
    fprintf(stderr, "Exit input thread %lu\r\n", (unsigned long)pthread_self());
