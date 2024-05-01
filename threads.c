@@ -40,6 +40,7 @@ void* input_thread(void*);
 void* output_thread(void*);
 void* alarm_thread(void*);
 bool send_message(data_t *data, message *msg);
+message *buffer_parse(data_t *data, int message_type);
 
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
@@ -194,23 +195,13 @@ void* output_thread(void* d)
       //int idx = 0, len = 0;
       //uint8_t msg_buf[sizeof(message)];
       
-      io_getc_timeout(data->rd, 0,&c); 
+      io_getc_timeout(data->rd, 10,&c); 
       if(c == MSG_VERSION){
-         printf("Version message recieved:");
-         uint8_t msg_buf[sizeof(message)];
-         int len = 0;
-         msg_buf[len++] = MSG_VERSION;
-         while((io_getc_timeout(data->rd, 0,&c) == 1)){
-            msg_buf[len++] = c;
-         }
-         message *msg = malloc(sizeof(message));
-         get_message_size(MSG_VERSION, &len);
-         if(!parse_message_buf(msg_buf, len, msg)){
-            fprintf(stderr, "Error: Unable to parse the message\n");
-            free(msg);
-            continue;
-         }
+         //printf("Version message recieved:");
+         message *msg = buffer_parse(data, MSG_VERSION);
          printf("Version: %c. %c. %c\r\n", msg->data.version.major, msg->data.version.minor, msg->data.version.patch);
+         free(msg);
+         c = '\0';
       }
    q = data->quit;
    fflush(stdout);
@@ -271,7 +262,26 @@ bool send_message(data_t *data, message *msg){
    return size == ret;
 }
 
+message *buffer_parse(data_t *data, int message_type){
+    uint8_t c;
+    int len = 0;
+    uint8_t msg_buf[sizeof(message)];
+    int i = 0;
+    msg_buf[i++] = message_type; // add the first byte 
+    while((io_getc_timeout(data->rd, 10,&c) == 1)){
+        msg_buf[i++] = c;
+    }
+    message *msg = malloc(sizeof(message));
+    msg->type = message_type;
+    get_message_size(message_type, &len);
+    if(!parse_message_buf(msg_buf, len, msg)){
+        fprintf(stderr, "Error: Unable to parse the message\n");
+        free(msg);
+        exit(1);
+    } 
+    return msg;
 
+}
 
 /* end of threads.c */
 
