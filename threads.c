@@ -196,16 +196,19 @@ void* output_thread(void* d)
       if(c == MSG_VERSION){
          printf("Version message recieved:");
          uint8_t msg_buf[sizeof(message)];
-         size_t len = 0;
+         int len = 0;
+         msg_buf[len++] = MSG_VERSION;
          while((io_getc_timeout(data->rd, 0,&c) == 1)){
             msg_buf[len++] = c;
          }
-         for (size_t i = 0; i < len; i++){
-            if (msg_buf[i] == '&')
-               continue;
-            printf("%c", msg_buf[i]);
+         message *msg = malloc(sizeof(message));
+         get_message_size(MSG_VERSION, &len);
+         if(!parse_message_buf(msg_buf, len, msg)){
+            fprintf(stderr, "Error: Unable to parse the message\n");
+            free(msg);
+            continue;
          }
-         printf("\r\n");
+         printf("Version: %c. %c. %c\r\n", msg->data.version.major, msg->data.version.minor, msg->data.version.patch);
       }
    q = data->quit;
    fflush(stdout);

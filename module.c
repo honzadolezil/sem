@@ -56,7 +56,7 @@ int main(){
         int r = io_getc_timeout(data->fd, 0,&c); 
         if (c == MSG_GET_VERSION){//sends firmware info
             printf("sending version\n");
-            message msg  = {.type = MSG_VERSION, .data.version = {'1','p','3'}};
+            message msg  = {.type = MSG_VERSION, .data.version = {'1','3','2'}};
             send_message(data,&msg);
             fsync(data->rd);
         }
@@ -64,7 +64,7 @@ int main(){
             printf("recieved set compute\n");
             //float c_re, c_im, d_re, d_im, n;
             int i = 0;
-            msg_buf[i++] = MSG_SET_COMPUTE;
+            msg_buf[i++] = MSG_SET_COMPUTE; // add the first byte 
             while((io_getc_timeout(data->fd, 100,&c) == 1)){
                 msg_buf[i++] = c;
             }
@@ -76,8 +76,12 @@ int main(){
                 free(msg);
                 exit(1);
             } // TODO
-            printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\n", msg->data.set_compute.c_re, msg->data.set_compute.c_im, msg->data.set_compute.d_re, msg->data.set_compute.d_im, msg->data.set_compute.n);
-            printf("message size = %d\r\n", len); 
+            double c_re = msg->data.set_compute.c_re;
+            double c_im = msg->data.set_compute.c_im;
+            double d_re = msg->data.set_compute.d_re;
+            double d_im = msg->data.set_compute.d_im;
+            int n = msg->data.set_compute.n;
+            printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\n", c_re, c_im, d_re, d_im, n);
         
             free(msg);
         }
