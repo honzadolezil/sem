@@ -106,10 +106,22 @@ void* input_thread(void* d)
       pthread_mutex_unlock(data->mtx);
    }
    message msg2;
-   while ((c = getchar()) != 'q' && data->quit == false) {
+   while ((c = getchar()) != 'q') {
       pthread_mutex_lock(data->mtx);
       int period = data->alarm_period;
       switch (c) {
+         case 'r':
+            period -= PERIOD_STEP;
+            if (period < PERIOD_MIN) {
+               period = PERIOD_MIN;
+            }
+            break;
+         case 'p':
+            period += PERIOD_STEP;
+            if (period > PERIOD_MAX) {
+               period = PERIOD_MAX;
+            }
+            break;
          case 'g':
             {
                pthread_mutex_unlock(data->mtx);
@@ -122,7 +134,7 @@ void* input_thread(void* d)
          case 's':
          {
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = 0.1, .c_im = 0.2, .d_re = 0.3, .d_im = 0.4, .n = 100}};
+            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = 0.1, .c_im = 0.2, .d_re = 0.3, .d_im = 0.4, .n = 1}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
@@ -130,17 +142,17 @@ void* input_thread(void* d)
          
          }
          break;
-         
          case 'c':
          {
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_COMPUTE, .data.compute = {'c',2.0,0.5,10,10}};
+            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = 1, .re = 0.1, .im = 0.2, .n_re = 100, .n_im = 100}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
             printf("compute message sent\r\n");
+         
+         
          }
-         break;
       }
       if (data->alarm_period != period) {
          pthread_cond_signal(data->cond); // signal the output thread to refresh 
@@ -151,7 +163,6 @@ void* input_thread(void* d)
 
    pthread_mutex_unlock(data->mtx);
    data->quit = true;
-   fsync(data->quit);
    r = 1;
    pthread_mutex_lock(data->mtx);
    pthread_cond_broadcast(data->cond);
@@ -204,11 +215,6 @@ void* output_thread(void* d)
       if(c == MSG_ERROR){
          printf("Module sent error\r\n");
       }
-      if(c == 'q'){
-         q = true;
-         data->quit = true;
-         printf("quit recieved\r\n");
-      }
    q = data->quit;
    fflush(stdout);
    }
@@ -239,11 +245,15 @@ void* alarm_thread(void* d)
    static int r = 0;
    pthread_mutex_lock(data->mtx);
    bool q = data->quit;
+   useconds_t period = data->alarm_period * 1000; // alarm_period is in ms
    pthread_mutex_unlock(data->mtx);
 
    while (!q) {
+      usleep(period);
       pthread_mutex_lock(data->mtx);
       q = data->quit;
+      data->alarm_counter += 1;
+      period = data->alarm_period * 1000; // update the period is it has been changed
       pthread_cond_broadcast(data->cond);
       pthread_mutex_unlock(data->mtx);
    }
@@ -286,4 +296,3 @@ message *buffer_parse(data_t *data, int message_type){
 }
 
 /* end of threads.c */
-

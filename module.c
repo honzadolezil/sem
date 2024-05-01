@@ -65,7 +65,7 @@ int main(){
         uint8_t cc;
         uint8_t c;
         io_getc_timeout(data->fd, 0,&c); 
-
+        
         if (read(STDIN_FILENO, &cc, 1) > 0) {
             if(cc == 'q'){
                 io_putc(data->rd, 'q');
@@ -100,8 +100,10 @@ int main(){
             double d_im = msg->data.set_compute.d_im;
             int n = msg->data.set_compute.n;
             printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\r\n", c_re, c_im, d_re, d_im, n);
-            free(msg);
-            c = '\0';   
+            
+            
+            c = '\0';
+            free(msg);   
         }
         else if (c == MSG_COMPUTE){
             printf("recieved computation\r\n");
@@ -113,6 +115,7 @@ int main(){
             uint8_t n_im = msg->data.compute.n_im;
             printf("cid = %d, re = %lf, im = %lf, n_re = %d, n_im = %d\r\n", cid, re, im, n_re, n_im);
             c = '\0';  
+            free(msg);
         }
             
     }
@@ -144,7 +147,7 @@ message *buffer_parse(data_t *data, int message_type){
     uint8_t msg_buf[sizeof(message)];
     int i = 0;
     msg_buf[i++] = message_type; // add the first byte 
-    while((io_getc_timeout(data->fd, 10,&c) == 1)){
+    while((io_getc_timeout(data->fd, 0,&c) == 1)){
         msg_buf[i++] = c;
     }
     message *msg = malloc(sizeof(message));
