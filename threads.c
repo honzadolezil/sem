@@ -207,6 +207,7 @@ void* output_thread(void* d)
       if(c == 'q'){
          q = true;
          data->quit = true;
+         printf("quit recieved\r\n");
       }
    q = data->quit;
    fflush(stdout);
@@ -238,15 +239,11 @@ void* alarm_thread(void* d)
    static int r = 0;
    pthread_mutex_lock(data->mtx);
    bool q = data->quit;
-   useconds_t period = data->alarm_period * 1000; // alarm_period is in ms
    pthread_mutex_unlock(data->mtx);
 
    while (!q) {
-      usleep(period);
       pthread_mutex_lock(data->mtx);
       q = data->quit;
-      data->alarm_counter += 1;
-      period = data->alarm_period * 1000; // update the period is it has been changed
       pthread_cond_broadcast(data->cond);
       pthread_mutex_unlock(data->mtx);
    }

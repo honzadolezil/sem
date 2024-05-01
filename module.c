@@ -70,7 +70,7 @@ int main(){
             if(cc == 'q'){
                 io_putc(data->rd, 'q');
                 fsync(data->rd);
-                
+                break;
             }
         }
      
