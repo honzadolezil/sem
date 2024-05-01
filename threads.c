@@ -106,22 +106,10 @@ void* input_thread(void* d)
       pthread_mutex_unlock(data->mtx);
    }
    message msg2;
-   while ((c = getchar()) != 'q') {
+   while ((c = getchar()) != 'q' && data->quit == false) {
       pthread_mutex_lock(data->mtx);
       int period = data->alarm_period;
       switch (c) {
-         case 'r':
-            period -= PERIOD_STEP;
-            if (period < PERIOD_MIN) {
-               period = PERIOD_MIN;
-            }
-            break;
-         case 'p':
-            period += PERIOD_STEP;
-            if (period > PERIOD_MAX) {
-               period = PERIOD_MAX;
-            }
-            break;
          case 'g':
             {
                pthread_mutex_unlock(data->mtx);
@@ -138,8 +126,19 @@ void* input_thread(void* d)
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
-            printf("computation message sent\r\n");
+            printf("set compute message sent\r\n");
          
+         }
+         break;
+         
+         case 'c':
+         {
+            pthread_mutex_unlock(data->mtx);
+            msg2 = (message){.type = MSG_COMPUTE, .data.compute = {'c',2.0,0.5,10,10}};
+            send_message(data, &msg2);
+            fsync(data->fd); // sync the data
+            pthread_mutex_lock(data->mtx);
+            printf("compute message sent\r\n");
          }
          break;
       }
@@ -152,6 +151,7 @@ void* input_thread(void* d)
 
    pthread_mutex_unlock(data->mtx);
    data->quit = true;
+   fsync(data->quit);
    r = 1;
    pthread_mutex_lock(data->mtx);
    pthread_cond_broadcast(data->cond);
@@ -203,6 +203,10 @@ void* output_thread(void* d)
       }
       if(c == MSG_ERROR){
          printf("Module sent error\r\n");
+      }
+      if(c == 'q'){
+         q = true;
+         data->quit = true;
       }
    q = data->quit;
    fflush(stdout);
