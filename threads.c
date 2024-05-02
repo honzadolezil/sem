@@ -30,6 +30,7 @@ typedef struct { // shared date structure
    int fd; //forwarding
    int rd;// recieving
    bool is_serial_open; // if comunication established
+   bool abort;
    pthread_mutex_t *mtx;
    pthread_cond_t *cond;
 } data_t;
@@ -45,7 +46,7 @@ message *buffer_parse(data_t *data, int message_type);
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false};
+   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false};
 
    enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
    const char *threads_names[] = { "Input", "Output", "Alarm" };
@@ -110,18 +111,6 @@ void* input_thread(void* d)
       pthread_mutex_lock(data->mtx);
       int period = data->alarm_period;
       switch (c) {
-         case 'r':
-            period -= PERIOD_STEP;
-            if (period < PERIOD_MIN) {
-               period = PERIOD_MIN;
-            }
-            break;
-         case 'p':
-            period += PERIOD_STEP;
-            if (period > PERIOD_MAX) {
-               period = PERIOD_MAX;
-            }
-            break;
          case 'g':
             {
                pthread_mutex_unlock(data->mtx);
@@ -142,17 +131,25 @@ void* input_thread(void* d)
          
          }
          break;
-         case 'c':
-         {
+         case '1':
+         {  
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = 1, .re = 0.1, .im = 0.2, .n_re = 100, .n_im = 100}};
+            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = 0, .re = 0.1, .im = 0.2, .n_re = 100, .n_im = 100}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
             printf("INFO: Compute message sent\r\n");
-         
-         
          }
+         break;
+         case 'a':
+         {
+            pthread_mutex_unlock(data->mtx);
+            data->abort = true;
+            fsync(data->abort); // sync the data
+            pthread_mutex_lock(data->mtx);
+            printf("WARNING: Abort computation message sent\r\n");
+         }
+         break;
       }
       if (data->alarm_period != period) {
          pthread_cond_signal(data->cond); // signal the output thread to refresh 

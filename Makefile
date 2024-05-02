@@ -13,7 +13,7 @@ all: $(BINARIES)
 OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
 
 prgsem-main: $(OBJS)
-	$(CC) prg_io_nonblock.o messages.o threads.o $(LDFLAGS) -o $@
+	$(CC) prg_io_nonblock.o messages.o threads.o $(LDFLAGS) -o $@ 
 
 module: $(OBJS)
 	$(CC) prg_io_nonblock.o messages.o module.o $(LDFLAGS) -o $@
