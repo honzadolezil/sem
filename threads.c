@@ -45,7 +45,7 @@ message *buffer_parse(data_t *data, int message_type);
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 100, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false};
+   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false};
 
    enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
    const char *threads_names[] = { "Input", "Output", "Alarm" };
@@ -200,7 +200,7 @@ void* output_thread(void* d)
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
       uint8_t c; 
-      io_getc_timeout(data->rd, 10,&c); 
+      io_getc_timeout(data->rd, 0,&c); 
       if(c == MSG_VERSION){
          //printf("Version message recieved:");
          message *msg = buffer_parse(data, MSG_VERSION);

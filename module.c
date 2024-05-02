@@ -12,7 +12,6 @@
 #include <pthread.h>
 #include "messages.h"
 #include "prg_io_nonblock.h" // send and recieves bites through pipe
-#include "messages.h"
 #define MY_DEVICE_OUT "/tmp/pipe.out"
 #define MY_DEVICE_IN "/tmp/pipe.in"
 
