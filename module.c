@@ -146,11 +146,18 @@ message *buffer_parse(data_t *data, int message_type){
     int len = 0;
     uint8_t msg_buf[sizeof(message)];
     int i = 0;
+
+    get_message_size(message_type, &len);
     msg_buf[i++] = message_type; // add the first byte 
-    while((io_getc_timeout(data->fd, 10,&c) == 1)){
+    while((i < len)){
+        io_getc_timeout(data->fd, 0, &c);
         msg_buf[i++] = c;
     }
     message *msg = malloc(sizeof(message));
+    if(msg == NULL){
+        fprintf(stderr, "ERROR: Unable to allocate memory\r\n");
+        exit(1);
+    }
     msg->type = message_type;
     get_message_size(message_type, &len);
     if(!parse_message_buf(msg_buf, len, msg)){
@@ -159,9 +166,9 @@ message *buffer_parse(data_t *data, int message_type){
         send_message(data,&msg2);
         fsync(data->rd);
         free(msg);  
+        exit(1);
     } 
     return msg;
-
 }
 
 void call_termios(int reset){

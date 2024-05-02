@@ -268,17 +268,19 @@ void* compute_thread(void* d)
    while (!q) {
       while ((!data->is_serial_open || !data->is_cond2_signaled) && !q) {
          pthread_cond_wait(data->cond2, data->mtx); // wait for next event
-         //data->is_cond2_signaled = false;
+         q = data->quit;
       }
 
       if (!q) {
-         //message msg2;
+         message msg2;
          for(int i = 0; i < NUM_CHUNKS; i++){
             printf("INFO: Compute message sent\r\n");
-
             pthread_mutex_unlock(data->mtx);
-            // ...
+            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = i, .c_im = 0.2, .d_re = 0.3, .d_im = 0.4, .n = 1}};
+            send_message(data, &msg2);
+            fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
+            printf("INFO: Set compute message sent\r\n");
          }
       }
       data->is_cond2_signaled = false;
@@ -287,6 +289,7 @@ void* compute_thread(void* d)
    pthread_mutex_unlock(data->mtx);
    return &r;
 }
+
 bool send_message(data_t *data, message *msg){
    uint8_t msg_buf[sizeof(message)];
    int size;
