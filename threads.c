@@ -21,6 +21,7 @@
 #define PERIOD_MIN 10
 #define PERIOD_MAX 2000
 #define PERIOD_STEP 10
+#define NUM_CHUNKS 10
 #include "messages.h"
 
 typedef struct { // shared date structure
@@ -33,6 +34,8 @@ typedef struct { // shared date structure
    bool abort;
    pthread_mutex_t *mtx;
    pthread_cond_t *cond;
+   pthread_cond_t *cond2;
+   bool is_cond2_signaled;
 } data_t;
 
 void call_termios(int reset); // raw mode terminal
@@ -40,18 +43,19 @@ void call_termios(int reset); // raw mode terminal
 void* input_thread(void*);
 void* output_thread(void*);
 void* alarm_thread(void*);
+void* compute_thread(void* d);
 bool send_message(data_t *data, message *msg);
 message *buffer_parse(data_t *data, int message_type);
 
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false};
+   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false};
 
-   enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
-   const char *threads_names[] = { "Input", "Output", "Alarm" };
+   enum { INPUT, OUTPUT, ALARM, COMPUTE, NUM_THREADS };
+   const char *threads_names[] = { "Input", "Output", "Alarm", "Compute"};
 
-   void* (*thr_functions[])(void*) = { input_thread, output_thread, alarm_thread };
+   void* (*thr_functions[])(void*) = { input_thread, output_thread, alarm_thread, compute_thread};
 
    pthread_t threads[NUM_THREADS];
    pthread_mutex_t mtx;
@@ -60,6 +64,7 @@ int main(int argc, char *argv[])
    pthread_cond_init(&cond, NULL); // initialize condition variable with default attributes
    data.mtx = &mtx;                // make the mutex accessible from the shared data structure
    data.cond = &cond;              // make the cond accessible from the shared data structure
+   data.cond2 = &cond;
 
    call_termios(0);
 
@@ -132,13 +137,11 @@ void* input_thread(void* d)
          }
          break;
          case '1':
-         {  
+         { 
+            data->is_cond2_signaled = true;
+            pthread_cond_broadcast(data->cond2);
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = 0, .re = 0.1, .im = 0.2, .n_re = 100, .n_im = 100}};
-            send_message(data, &msg2);
-            fsync(data->fd); // sync the data
-            pthread_mutex_lock(data->mtx);
-            printf("INFO: Compute message sent\r\n");
+            printf("wake up compute thread\r\n");
          }
          break;
          case 'a':
@@ -196,6 +199,8 @@ void* output_thread(void* d)
    data->is_serial_open = true;
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
+      
+
       uint8_t c; 
       io_getc_timeout(data->rd, 0,&c); 
       if(c == MSG_VERSION){
@@ -253,6 +258,35 @@ void* alarm_thread(void* d)
 }
 
 
+void* compute_thread(void* d) 
+{
+   data_t *data = (data_t*)d;
+   static int r = 0;
+
+   bool q = false;
+   pthread_mutex_lock(data->mtx);
+   while (!q) {
+      while ((!data->is_serial_open || !data->is_cond2_signaled) && !q) {
+         pthread_cond_wait(data->cond2, data->mtx); // wait for next event
+         //data->is_cond2_signaled = false;
+      }
+
+      if (!q) {
+         //message msg2;
+         for(int i = 0; i < NUM_CHUNKS; i++){
+            printf("INFO: Compute message sent\r\n");
+
+            pthread_mutex_unlock(data->mtx);
+            // ...
+            pthread_mutex_lock(data->mtx);
+         }
+      }
+      data->is_cond2_signaled = false;
+      q = data->quit;
+   }
+   pthread_mutex_unlock(data->mtx);
+   return &r;
+}
 bool send_message(data_t *data, message *msg){
    uint8_t msg_buf[sizeof(message)];
    int size;
