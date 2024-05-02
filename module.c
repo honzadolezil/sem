@@ -22,6 +22,7 @@ typedef struct { // shared date structure;
     int fd; //forwarding
     int rd;// recieving
     bool is_serial_open; // if comunication established
+    bool abort;
     pthread_mutex_t *mtx;
     pthread_cond_t *cond;
 }   data_t;
@@ -79,7 +80,7 @@ int main(){
         }    
         else if (c == MSG_GET_VERSION){//sends firmware info
             printf("INFO: sending version\r\n");
-            message msg  = {.type = MSG_VERSION, .data.version = {'1','3','2'}};
+            message msg  = {.type = MSG_VERSION, .data.version = {'1','2','2'}};
             if(!send_message(data,&msg))
                 exit(1);
             fsync(data->rd);
@@ -146,7 +147,7 @@ message *buffer_parse(data_t *data, int message_type){
     uint8_t msg_buf[sizeof(message)];
     int i = 0;
     msg_buf[i++] = message_type; // add the first byte 
-    while((io_getc_timeout(data->fd, 0,&c) == 1)){
+    while((io_getc_timeout(data->fd, 10,&c) == 1)){
         msg_buf[i++] = c;
     }
     message *msg = malloc(sizeof(message));
