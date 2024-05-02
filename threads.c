@@ -64,14 +64,14 @@ int main(int argc, char *argv[])
 
    for (int i = 0; i < NUM_THREADS; ++i) { // create threads 
       int r = pthread_create(&threads[i], NULL, thr_functions[i], &data);
-      printf("Create thread '%s' %s\r\n", threads_names[i], ( r == 0 ? "OK" : "FAIL") );
+      printf("INFO: Create thread '%s' %s\r\n", threads_names[i], ( r == 0 ? "OK" : "FAIL") );
    }
 
    int *ex;
    for (int i = 0; i < NUM_THREADS; ++i) { // join threads so main doesnt end before threads
-      printf("Call join to the thread %s\r\n", threads_names[i]);
+      printf("INFO: Call join to the thread %s\r\n", threads_names[i]);
       int r = pthread_join(threads[i], (void*)&ex);
-      printf("Joining the thread %s has been %s - exit value %i\r\n", threads_names[i], (r == 0 ? "OK" : "FAIL"), *ex);
+      printf("INFO: Joining the thread %s has been %s - exit value %i\r\n", threads_names[i], (r == 0 ? "OK" : "FAIL"), *ex);
    }
 
    call_termios(1); // restore terminal settings
@@ -138,7 +138,7 @@ void* input_thread(void* d)
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
-            printf("set compute message sent\r\n");
+            printf("INFO: Set compute message sent\r\n");
          
          }
          break;
@@ -149,7 +149,7 @@ void* input_thread(void* d)
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
-            printf("compute message sent\r\n");
+            printf("INFO: Compute message sent\r\n");
          
          
          }
@@ -167,7 +167,7 @@ void* input_thread(void* d)
    pthread_mutex_lock(data->mtx);
    pthread_cond_broadcast(data->cond);
    pthread_mutex_unlock(data->mtx);
-   fprintf(stderr, "Exit input thread %lu\r\n", (unsigned long)pthread_self());
+   fprintf(stderr, "INFO: Exit input thread %lu\r\n", (unsigned long)pthread_self());
    return &r;
 }
 
@@ -179,19 +179,19 @@ void* output_thread(void* d)
    bool q = false;
    data->fd = io_open_write(MY_DEVICE_OUT);
    if (data->fd == EOF) {
-      fprintf(stderr, "Error: Unable to open the file %s\n", MY_DEVICE_OUT);
+      fprintf(stderr, "ERROR: Unable to open the file %s\n", MY_DEVICE_OUT);
       exit(1);
    }
    data->rd = io_open_read(MY_DEVICE_IN);
    if (data->rd == EOF){
-        fprintf(stderr, "Error: Unable to open the file %s\n", MY_DEVICE_IN);
+        fprintf(stderr, "ERROR: Unable to open the file %s\n", MY_DEVICE_IN);
         exit(1); // not coding style but whatever
     }
    message msg  = {.type = MSG_STARTUP, .data.startup = { .message = "Henlo"}};
    send_message(data, &msg);
    
    if (io_putc(data->fd, 'i') != 1) { // sends init byte
-      fprintf(stderr, "Error: Unable to send the init byte\n");
+      fprintf(stderr, "ERROR: Unable to send the init byte\n");
       exit(1);
    }
    fsync(data->fd); // sync the data
@@ -199,21 +199,17 @@ void* output_thread(void* d)
    data->is_serial_open = true;
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
-      // here i will print output to the console
-      uint8_t c;
-      //int idx = 0, len = 0;
-      //uint8_t msg_buf[sizeof(message)];
-      
+      uint8_t c; 
       io_getc_timeout(data->rd, 10,&c); 
       if(c == MSG_VERSION){
          //printf("Version message recieved:");
          message *msg = buffer_parse(data, MSG_VERSION);
-         printf("Version: %c. %c. %c\r\n", msg->data.version.major, msg->data.version.minor, msg->data.version.patch);
+         printf("INFO: Version: %c. %c. %c\r\n", msg->data.version.major, msg->data.version.minor, msg->data.version.patch);
          free(msg);
          c = '\0';
       }
       if(c == MSG_ERROR){
-         printf("Module sent error\r\n");
+         printf("ERROR: Module sent error\r\n");
       }
    q = data->quit;
    fflush(stdout);
@@ -221,13 +217,13 @@ void* output_thread(void* d)
    pthread_mutex_unlock(data->mtx);
 
    if (io_putc(data->fd, 'q') != 1) { // sends exit byte
-      fprintf(stderr, "Error: Unable to send the end byte\r\n");
+      fprintf(stderr, "ERROR: Unable to send the end byte\r\n");
       exit(1);
    }
    fsync(data->fd); // sync the data
    io_close(data->fd);
    io_close(data->rd);
-   fprintf(stderr, "Exit output thread %lu\r\n", (unsigned long)pthread_self());
+   fprintf(stderr, "INFO: Exit output thread %lu\r\n", (unsigned long)pthread_self());
    return &r;
 }
 
@@ -241,7 +237,7 @@ void* alarm_thread(void* d)
       qq = data->is_serial_open;
       pthread_mutex_unlock(data->mtx);
    }
-   printf("pipe unlocked\r\n");
+   printf("INFO: pipe unlocked\r\n");
    static int r = 0;
    pthread_mutex_lock(data->mtx);
    bool q = data->quit;
@@ -252,12 +248,10 @@ void* alarm_thread(void* d)
       usleep(period);
       pthread_mutex_lock(data->mtx);
       q = data->quit;
-      data->alarm_counter += 1;
-      period = data->alarm_period * 1000; // update the period is it has been changed
-      pthread_cond_broadcast(data->cond);
+      pthread_cond_broadcast(data->cond); // broadcast condition for output thread - to prevent buffer overflow
       pthread_mutex_unlock(data->mtx);
    }
-   fprintf(stderr, "Exit alarm thread %lu\r\n", (unsigned long)pthread_self());
+   fprintf(stderr, "INFO: Exit alarm thread %lu\r\n", (unsigned long)pthread_self());
    return &r;
 }
 
@@ -287,7 +281,7 @@ message *buffer_parse(data_t *data, int message_type){
     msg->type = message_type;
     get_message_size(message_type, &len);
     if(!parse_message_buf(msg_buf, len, msg)){
-        fprintf(stderr, "Error: Unable to parse the message\n");
+        fprintf(stderr, "ERROR: Unable to parse the message\n");
         free(msg);
         exit(1);
     } 

@@ -68,7 +68,7 @@ int main(){
         
         if (read(STDIN_FILENO, &cc, 1) > 0) {
             if(cc == 'q'){
-                io_putc(data->rd, 'q');
+                io_putc(data->rd, 'q'); // put quit char to pipe
                 fsync(data->rd);
                 break;
             }
@@ -79,7 +79,7 @@ int main(){
             break;
         }    
         else if (c == MSG_GET_VERSION){//sends firmware info
-            printf("sending version\r\n");
+            printf("INFO: sending version\r\n");
             message msg  = {.type = MSG_VERSION, .data.version = {'1','3','2'}};
             if(!send_message(data,&msg))
                 exit(1);
@@ -87,12 +87,12 @@ int main(){
         }
         else if (c == MSG_STARTUP){
             message *msg = buffer_parse(data, MSG_STARTUP);
-            printf("startup: %s\r\n", msg->data.startup.message);
+            printf("INFO: Startup: %s\r\n", msg->data.startup.message);
             free(msg);
             c = '\0';
         }
         else if (c == MSG_SET_COMPUTE){
-            printf("recieved set compute\r\n");
+            printf("INFO: recieved set compute\r\n");
             message *msg = buffer_parse(data, MSG_SET_COMPUTE);
             double c_re = msg->data.set_compute.c_re;
             double c_im = msg->data.set_compute.c_im;
@@ -106,7 +106,7 @@ int main(){
             free(msg);   
         }
         else if (c == MSG_COMPUTE){
-            printf("recieved computation\r\n");
+            printf("INFO: recieved computation\r\n");
             message *msg = buffer_parse(data, MSG_COMPUTE);
             uint8_t cid = msg->data.compute.cid;
             double re  = msg->data.compute.re;
@@ -154,7 +154,7 @@ message *buffer_parse(data_t *data, int message_type){
     msg->type = message_type;
     get_message_size(message_type, &len);
     if(!parse_message_buf(msg_buf, len, msg)){
-        fprintf(stderr, "Error: Unable to parse the message\r\n");
+        fprintf(stderr, "ERROR: Unable to parse the message\r\n");
         message msg2  = {.type = MSG_ERROR};
         send_message(data,&msg2);
         fsync(data->rd);
