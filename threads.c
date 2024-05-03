@@ -127,11 +127,14 @@ void* input_thread(void* d)
       switch (c) {
          case 'g':
             {
+               
                pthread_mutex_unlock(data->mtx);
                msg2 = (message){.type = MSG_GET_VERSION,};
                send_message(data, &msg2);
                fsync(data->fd); // sync the data
                pthread_mutex_lock(data->mtx);
+               printf("\033[1;34mINFO\033[0m: Get version set\r\n");
+
             }
             break;
          case 's':
