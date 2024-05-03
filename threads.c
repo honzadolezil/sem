@@ -5,6 +5,13 @@
 #include <stdbool.h>
 
 #include <fcntl.h>
+#include <time.h>
+
+
+
+
+
+
 
 
 #include <string.h>
@@ -46,6 +53,8 @@ void* alarm_thread(void*);
 void* compute_thread(void* d);
 bool send_message(data_t *data, message *msg);
 message *buffer_parse(data_t *data, int message_type);
+
+void wait(int seconds);
 
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
@@ -137,7 +146,8 @@ void* input_thread(void* d)
          }
          break;
          case '1':
-         { 
+         {  
+            data->abort = false;
             data->is_cond2_signaled = true;
             pthread_cond_broadcast(data->cond2);
             pthread_mutex_unlock(data->mtx);
@@ -243,11 +253,11 @@ void* alarm_thread(void* d)
    static int r = 0;
    pthread_mutex_lock(data->mtx);
    bool q = data->quit;
-   useconds_t period = data->alarm_period * 1000; // alarm_period is in ms
+   //useconds_t period = data->alarm_period * 1000; // alarm_period is in ms
    pthread_mutex_unlock(data->mtx);
 
    while (!q) {
-      usleep(period);
+      //usleep(period);
       pthread_mutex_lock(data->mtx);
       q = data->quit;
       pthread_cond_broadcast(data->cond); // broadcast condition for output thread - to prevent buffer overflow
@@ -288,7 +298,6 @@ void* compute_thread(void* d)
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
-            printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
             
          }
       }
@@ -330,6 +339,13 @@ message *buffer_parse(data_t *data, int message_type){
     } 
     return msg;
 
+}
+
+void wait(int seconds) {
+   time_t start_time = time(NULL);
+   while (time(NULL) - start_time < seconds) {
+      // waiting...
+   }
 }
 
 /* end of threads.c */
