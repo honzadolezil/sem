@@ -21,7 +21,7 @@
 #define PERIOD_MIN 10
 #define PERIOD_MAX 2000
 #define PERIOD_STEP 10
-#define NUM_CHUNKS 124
+#define NUM_CHUNKS 9000000000000
 #include "messages.h"
 
 typedef struct { // shared date structure
@@ -147,6 +147,7 @@ void* input_thread(void* d)
             pthread_mutex_unlock(data->mtx);
             if(data->compute_used){
                printf("\033[1;33mWARNING\033[0m: Compute thread is already running\r\n");
+               printf("\033[1;32mHINT:\033[0m: If you want to abort computation, press a\r\n");
                pthread_mutex_lock(data->mtx);
                break;
             }
@@ -307,7 +308,7 @@ void* compute_thread(void* d)
 
             if(data->abort){
                printf("\033[1;33mWARNING\033[0m: Abort signal recieved\r\n");
-               printf("        If you want to continue computation, press 1\r\n");
+               printf("\033[1;32mHINT:\033[0m: If you want to continue computation, press 1\r\n");
                data->abort = false;
                data->cid = i--;
                data->compute_used = false;
