@@ -7,13 +7,6 @@
 #include <fcntl.h>
 #include <time.h>
 
-
-
-
-
-
-
-
 #include <string.h>
 #include <termios.h>
 #include <unistd.h> // for STDIN_FILENO
@@ -28,12 +21,13 @@
 #define PERIOD_MIN 10
 #define PERIOD_MAX 2000
 #define PERIOD_STEP 10
-#define NUM_CHUNKS 100000
+#define NUM_CHUNKS 10000000000
 #include "messages.h"
 
 typedef struct { // shared date structure
    int alarm_period;
    int alarm_counter;
+   int cid;
    bool quit;
    int fd; //forwarding
    int rd;// recieving
@@ -59,7 +53,7 @@ void wait(int seconds);
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false};
+   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0};
 
    enum { INPUT, OUTPUT, ALARM, COMPUTE, NUM_THREADS };
    const char *threads_names[] = { "Input", "Output", "Alarm", "Compute"};
@@ -127,7 +121,6 @@ void* input_thread(void* d)
       switch (c) {
          case 'g':
             {
-               
                pthread_mutex_unlock(data->mtx);
                msg2 = (message){.type = MSG_GET_VERSION,};
                send_message(data, &msg2);
@@ -154,7 +147,7 @@ void* input_thread(void* d)
             data->is_cond2_signaled = true;
             pthread_cond_broadcast(data->cond2);
             pthread_mutex_unlock(data->mtx);
-            printf("wake up compute thread\r\n");
+            printf("\033[1;34mINFO\033[0m: wake up compute thread\r\n");
          }
          break;
          case 'a':
@@ -166,6 +159,14 @@ void* input_thread(void* d)
             printf("\033[1;33mWARNING\033[0m: Abort computation message sent\r\n");
          }
          break;
+         case 'r':
+         {
+            pthread_mutex_unlock(data->mtx);
+            data->cid = 0;
+            printf("\033[1;34mINFO\033[0m: Reset cid\r\n");
+            fsync(data->cid);
+            pthread_mutex_lock(data->mtx);
+         }
       }
       if (data->alarm_period != period) {
          pthread_cond_signal(data->cond); // signal the output thread to refresh 
@@ -286,16 +287,18 @@ void* compute_thread(void* d)
 
       if (!q) {
          message msg2;
-         for(int i = 0; i < NUM_CHUNKS; i++){
+          for(int i = data->cid; i < NUM_CHUNKS; i++){
             if(data->abort){
                printf("\033[1;33mWARNING\033[0m: Abort signal recieved\r\n");
+               printf("        If you want to continue computation, press 1\r\n");
                data->abort = false;
+               data->cid = i;
                break;
             }
             if(data->quit){
                break;
             }
-            printf("\033[1;34mINFO\033[0m: Compute message sent\r\n");
+            //printf("\033[1;34mINFO\033[0m: Compute message sent\r\n");
             pthread_mutex_unlock(data->mtx);
             msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = i, .c_im = 0.2, .d_re = 0.3, .d_im = 0.4, .n = 1}};
             send_message(data, &msg2);
