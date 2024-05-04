@@ -21,7 +21,7 @@
 #define PERIOD_MIN 10
 #define PERIOD_MAX 2000
 #define PERIOD_STEP 10
-#define NUM_CHUNKS 9000000000000
+#define NUM_CHUNKS 123456
 #include "messages.h"
 
 typedef struct { // shared date structure
@@ -163,7 +163,8 @@ void* input_thread(void* d)
             pthread_mutex_unlock(data->mtx);
             data->abort = true;
             fsync(data->abort); // sync the data
-            printf("\033[1;33mWARNING\033[0m: Abort computation message sent\r\n");
+            printf("\n");
+            //printf("\033[1;33mWARNING\033[0m: Abort computation message sent\r\n");
             pthread_mutex_lock(data->mtx);
          }
          break;
@@ -325,15 +326,29 @@ void* compute_thread(void* d)
             msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = i, .re = 0.1, .im = 0.2, .n_re = 0, .n_im = 0}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
-
-            // here waits for the response and draws it on the screen using SDL
+            data->cid = i;
+            fsync(data->cid);
             
+            // Print console loading animation
+            
+            
+            
+            // here waits for the response and draws it on the screen using SDL
+            printf("\033[1;33mComputing...\033[0m %.2f%%\r", ((float)i/NUM_CHUNKS * 100));
+            fflush(stdout);
 
             pthread_mutex_lock(data->mtx);
             
          }
+         printf("\n");
          data->compute_used = false;
-         fsync(data->compute_used);
+          fsync(data->compute_used);
+          fsync(data->cid);
+          fsync(data->abort);
+         if(data->cid == NUM_CHUNKS-1){
+            printf("\033[1;32mComputing finished\033[0m\r\n");
+         }
+        
       }
       data->is_cond2_signaled = false;
       q = data->quit;
