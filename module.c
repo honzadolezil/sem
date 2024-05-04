@@ -175,7 +175,7 @@ void* input_thread(void* d)
     return &r;
 }
 
-void* calculation_thread(void*){
+void* calculation_thread(void*d){
     static int r = 1;
     return &r;
 }

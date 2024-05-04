@@ -162,8 +162,8 @@ void* input_thread(void* d)
             pthread_mutex_unlock(data->mtx);
             data->abort = true;
             fsync(data->abort); // sync the data
-            pthread_mutex_lock(data->mtx);
             printf("\033[1;33mWARNING\033[0m: Abort computation message sent\r\n");
+            pthread_mutex_lock(data->mtx);
          }
          break;
          case 'r':
@@ -192,7 +192,6 @@ void* input_thread(void* d)
    return &r;
 }
 
-// - function -----------------------------------------------------------------
 void* output_thread(void* d)
 {
    data_t *data = (data_t*)d;
@@ -250,6 +249,13 @@ void* output_thread(void* d)
    return &r;
 }
 
+
+
+
+
+
+
+
 // - function -----------------------------------------------------------------
 void* alarm_thread(void* d) 
 {
@@ -298,13 +304,16 @@ void* compute_thread(void* d)
       if (!q) {
          message msg2;
           for(int i = data->cid; i < NUM_CHUNKS; i++){
+
             if(data->abort){
                printf("\033[1;33mWARNING\033[0m: Abort signal recieved\r\n");
                printf("        If you want to continue computation, press 1\r\n");
                data->abort = false;
-               data->cid = i;
+               data->cid = i--;
                data->compute_used = false;
                fsync(data->compute_used);
+               fsync(data->cid);
+               fsync(data->abort);
                break;
             }
             if(data->quit){
@@ -315,6 +324,10 @@ void* compute_thread(void* d)
             msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = i, .re = 0.1, .im = 0.2, .n_re = 0, .n_im = 0}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
+
+            // here waits for the response and draws it on the screen using SDL
+            
+
             pthread_mutex_lock(data->mtx);
             
          }
