@@ -21,7 +21,7 @@
 #define PERIOD_MIN 10
 #define PERIOD_MAX 2000
 #define PERIOD_STEP 10
-#define NUM_CHUNKS 10000000000
+#define NUM_CHUNKS 124
 #include "messages.h"
 
 typedef struct { // shared date structure
@@ -37,6 +37,7 @@ typedef struct { // shared date structure
    pthread_cond_t *cond;
    pthread_cond_t *cond2;
    bool is_cond2_signaled;
+   bool compute_used;
 } data_t;
 
 void call_termios(int reset); // raw mode terminal
@@ -53,7 +54,7 @@ void wait(int seconds);
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0};
+   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false};
 
    enum { INPUT, OUTPUT, ALARM, COMPUTE, NUM_THREADS };
    const char *threads_names[] = { "Input", "Output", "Alarm", "Compute"};
@@ -143,10 +144,16 @@ void* input_thread(void* d)
          break;
          case '1':
          {  
+            pthread_mutex_unlock(data->mtx);
+            if(data->compute_used){
+               printf("\033[1;33mWARNING\033[0m: Compute thread is already running\r\n");
+               pthread_mutex_lock(data->mtx);
+               break;
+            }
             data->abort = false;
             data->is_cond2_signaled = true;
+            pthread_mutex_lock(data->mtx);
             pthread_cond_broadcast(data->cond2);
-            pthread_mutex_unlock(data->mtx);
             printf("\033[1;34mINFO\033[0m: wake up compute thread\r\n");
          }
          break;
@@ -285,6 +292,9 @@ void* compute_thread(void* d)
          q = data->quit;
       }
 
+      data->compute_used = true;
+      fsync(data->compute_used);
+
       if (!q) {
          message msg2;
           for(int i = data->cid; i < NUM_CHUNKS; i++){
@@ -293,6 +303,8 @@ void* compute_thread(void* d)
                printf("        If you want to continue computation, press 1\r\n");
                data->abort = false;
                data->cid = i;
+               data->compute_used = false;
+               fsync(data->compute_used);
                break;
             }
             if(data->quit){
@@ -300,12 +312,14 @@ void* compute_thread(void* d)
             }
             //printf("\033[1;34mINFO\033[0m: Compute message sent\r\n");
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = i, .c_im = 0.2, .d_re = 0.3, .d_im = 0.4, .n = 1}};
+            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = i, .re = 0.1, .im = 0.2, .n_re = 0, .n_im = 0}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
             
          }
+         data->compute_used = false;
+         fsync(data->compute_used);
       }
       data->is_cond2_signaled = false;
       q = data->quit;
