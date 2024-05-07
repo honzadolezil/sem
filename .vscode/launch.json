@@ -4,13 +4,14 @@
     "name": "(gdb) Launch",
     "type": "cppdbg",
     "request": "launch",
-    "program": "${workspaceFolder}/prgsem-main",
+    "program": "${workspaceFolder}/module",
     "args": [],
     "stopAtEntry": false,
     "cwd": "${fileDirname}",
     "environment": [],
     "externalConsole": false,
     "MIMode": "gdb",
+    "miDebuggerPath": "/usr/bin/gdb",
     "setupCommands": [
         {
             "description": "Enable pretty-printing for gdb",

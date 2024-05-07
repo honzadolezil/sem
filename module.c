@@ -27,8 +27,22 @@ typedef struct { // shared date structure;
     int rd;// recieving
     bool is_serial_open; // if comunication established
     bool abort;
+    bool is_cond_signaled;
+    bool is_message_recieved;
     pthread_mutex_t *mtx;
     pthread_cond_t *cond;
+
+
+
+    //computation data
+    uint8_t cid;;
+    double re;
+    double im;
+    uint8_t n_re;
+    uint8_t n_im;
+
+
+
 }   data_t;
 
 void* input_thread(void*);
@@ -112,7 +126,7 @@ void* input_thread(void* d)
     pthread_mutex_lock(data->mtx);
     while (!data->quit) {
         
-        uint8_t c;
+        uint8_t c = '\0';
         io_getc_timeout(data->fd, 0,&c); 
         if (c == 'q'){
             break;
@@ -149,18 +163,25 @@ void* input_thread(void* d)
             pthread_mutex_lock(data->mtx);
         }
         else if (c == MSG_COMPUTE){
+            pthread_cond_signal(data->cond);
             pthread_mutex_unlock(data->mtx);
-            printf("INFO: recieved computation\r\n");
             message *msg = buffer_parse(data, MSG_COMPUTE);
-            uint8_t cid = msg->data.compute.cid;
-            double re  = msg->data.compute.re;
-            double im  = msg->data.compute.im;
-            uint8_t n_re = msg->data.compute.n_re;
-            uint8_t n_im = msg->data.compute.n_im;
-            printf("cid = %d, re = %lf, im = %lf, n_re = %d, n_im = %d\r\n", cid, re, im, n_re, n_im);
-            c = '\0';  
+            data->cid = msg->data.compute.cid;
+            data->re  = msg->data.compute.re;
+            data->im  = msg->data.compute.im;
+            data->n_re = msg->data.compute.n_re;
+            data->n_im = msg->data.compute.n_im;
             free(msg);
+            data->is_cond_signaled = true;
+            fsync(data->is_cond_signaled);
+            fsync(data->cid);
+            fsync(data->re);
+            fsync(data->im);
+            fsync(data->n_re);
+            fsync(data->n_im);
             pthread_mutex_lock(data->mtx);
+            
+            c = '\0';
         }
             
     }
@@ -176,7 +197,24 @@ void* input_thread(void* d)
 }
 
 void* calculation_thread(void*d){
+    data_t *data = (data_t*)d;
     static int r = 1;
+
+    bool q = false;
+    pthread_mutex_lock(data->mtx);
+    while(!q){
+        while ((!data->is_cond_signaled) && !q) {
+            pthread_cond_wait(data->cond, data->mtx); // wait for next event
+            q = data->quit;
+        }
+        
+        if (!q) {
+            printf("cid = %d, re = %lf, im = %lf, n_re = %d, n_im = %d\r\n", data->cid, data->re, data->im, data->n_re, data->n_im);
+        }
+        data->is_cond_signaled = false;
+        q = data->quit;
+    }
+    pthread_mutex_unlock(data->mtx);
     return &r;
 }
 
@@ -194,7 +232,7 @@ bool send_message(data_t *data, message *msg){
 }
 
 message *buffer_parse(data_t *data, int message_type){
-    uint8_t c;
+    uint8_t c = 0;
     int len = 0;
     uint8_t msg_buf[sizeof(message)];
     int i = 0;

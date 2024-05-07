@@ -21,7 +21,7 @@
 #define PERIOD_MIN 10
 #define PERIOD_MAX 2000
 #define PERIOD_STEP 10
-#define NUM_CHUNKS 123456
+#define NUM_CHUNKS 200
 #include "messages.h"
 
 typedef struct { // shared date structure
@@ -223,7 +223,7 @@ void* output_thread(void* d)
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
       
 
-      uint8_t c; 
+      uint8_t c = '\0'; 
       io_getc_timeout(data->rd, 0,&c); 
       if(c == MSG_VERSION){
          //printf("Version message recieved:");
@@ -334,7 +334,7 @@ void* compute_thread(void* d)
             
             
             // here waits for the response and draws it on the screen using SDL
-            printf("\033[1;33mComputing...\033[0m %.2f%%\r", ((float)i/NUM_CHUNKS * 100));
+            printf("\033[1;33mComputing...\033[0m %.2f%%\r", ((float)(i+1)/NUM_CHUNKS * 100));
             fflush(stdout);
 
             pthread_mutex_lock(data->mtx);
@@ -342,9 +342,9 @@ void* compute_thread(void* d)
          }
          printf("\n");
          data->compute_used = false;
-          fsync(data->compute_used);
-          fsync(data->cid);
-          fsync(data->abort);
+         fsync(data->compute_used);
+         fsync(data->cid);
+         fsync(data->abort);
          if(data->cid == NUM_CHUNKS-1){
             printf("\033[1;32mComputing finished\033[0m\r\n");
          }
