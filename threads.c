@@ -21,7 +21,7 @@
 #define PERIOD_MIN 10
 #define PERIOD_MAX 2000
 #define PERIOD_STEP 10
-#define NUM_CHUNKS 200
+#define NUM_CHUNKS 169
 #include "messages.h"
 
 typedef struct { // shared date structure
@@ -305,40 +305,36 @@ void* compute_thread(void* d)
 
       if (!q) {
          message msg2;
-          for(int i = data->cid; i < NUM_CHUNKS; i++){
-
-            if(data->abort){
-               printf("\033[1;33mWARNING\033[0m: Abort signal recieved\r\n");
+         
+         while (data->cid < NUM_CHUNKS) {
+            if (data->abort) {
+               printf("\033[1;33mWARNING\033[0m: Abort signal received\r\n");
                printf("\033[1;32mHINT:\033[0m: If you want to continue computation, press 1\r\n");
                data->abort = false;
-               data->cid = i--;
+               data->cid--;
                data->compute_used = false;
                fsync(data->compute_used);
                fsync(data->cid);
                fsync(data->abort);
                break;
             }
-            if(data->quit){
+            if (data->quit) {
                break;
             }
-            //printf("\033[1;34mINFO\033[0m: Compute message sent\r\n");
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = i, .re = 0.1, .im = 0.2, .n_re = 0, .n_im = 0}};
+            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = 0.1, .im = 0.2, .n_re = 0, .n_im = 0}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
-            data->cid = i;
-            fsync(data->cid);
-            
-            // Print console loading animation
             
             
             
             // here waits for the response and draws it on the screen using SDL
-            printf("\033[1;33mComputing...\033[0m %.2f%%\r", ((float)(i+1)/NUM_CHUNKS * 100));
+            printf("\033[1;33mComputing...\033[0m %.2f%%\r", ((float)(data->cid+1)/NUM_CHUNKS * 100));
             fflush(stdout);
 
             pthread_mutex_lock(data->mtx);
-            
+            data->cid++;
+            fsync(data->cid);
          }
          printf("\n");
          data->compute_used = false;
