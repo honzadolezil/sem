@@ -18,9 +18,7 @@
 #define MY_DEVICE_OUT "/tmp/pipe.out"
 #define MY_DEVICE_IN "/tmp/pipe.in"
 
-#define PERIOD_MIN 10
-#define PERIOD_MAX 2000
-#define PERIOD_STEP 10
+
 #define NUM_CHUNKS 169
 #include "messages.h"
 
@@ -341,7 +339,7 @@ void* compute_thread(void* d)
          fsync(data->compute_used);
          fsync(data->cid);
          fsync(data->abort);
-         if(data->cid == NUM_CHUNKS-1){
+         if(data->cid == NUM_CHUNKS){
             printf("\033[1;32mComputing finished\033[0m\r\n");
          }
         
