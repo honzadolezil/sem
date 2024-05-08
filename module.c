@@ -63,7 +63,7 @@ void compute_julia_set(data_t *data);
 
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false,};
+   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond_signaled = false};
 
    enum { INPUT, CALCULATION, NUM_THREADS };
    const char *threads_names[] = { "Input", "Calculation",};
@@ -133,7 +133,7 @@ void* input_thread(void* d)
         }
     }
     printf("INFO: Startup message recieved\r\n");
-    pthread_mutex_lock(data->mtx);
+    //pthread_mutex_lock(data->mtx);
     while (!data->quit) {
         
         uint8_t c = '\0';
@@ -143,23 +143,23 @@ void* input_thread(void* d)
         }    
         else if (c == MSG_GET_VERSION){//sends firmware info
             printf("INFO: sending version\r\n");
-            pthread_mutex_unlock(data->mtx);
+            //pthread_mutex_unlock(data->mtx);
             message msg  = {.type = MSG_VERSION, .data.version = {'1','2','2'}};
             if(!send_message(data,&msg))
                 exit(1);
             fsync(data->rd);
-            pthread_mutex_lock(data->mtx);
+           // pthread_mutex_lock(data->mtx);
         }
         else if (c == MSG_STARTUP){
-            pthread_mutex_unlock(data->mtx);
+            //pthread_mutex_unlock(data->mtx);
             message *msg = buffer_parse(data, MSG_STARTUP);
             printf("INFO: Startup: %s\r\n", msg->data.startup.message);
             free(msg);
             c = '\0';
-            pthread_mutex_lock(data->mtx);
+            //pthread_mutex_lock(data->mtx);
         }
         else if (c == MSG_SET_COMPUTE){
-            pthread_mutex_unlock(data->mtx);
+            //pthread_mutex_unlock(data->mtx);
             printf("INFO: recieved set compute\r\n");
             message *msg = buffer_parse(data, MSG_SET_COMPUTE);
             data->c_re = msg->data.set_compute.c_re;
@@ -167,52 +167,54 @@ void* input_thread(void* d)
             data->d_re = msg->data.set_compute.d_re;
             data->d_im = msg->data.set_compute.d_im;
             data->n = msg->data.set_compute.n;
+
+
             printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\r\n", data->c_re, data->c_im, data->d_re, data->d_im, data->n);
             c = '\0';
             free(msg);   
-            pthread_mutex_lock(data->mtx);
+            //pthread_mutex_lock(data->mtx);
         }
         else if (c == MSG_COMPUTE){
-            pthread_cond_signal(data->cond);
-            pthread_mutex_unlock(data->mtx);
+            //pthread_mutex_unlock(data->mtx);
+            printf("INFO: recieved compute\r\n");
             message *msg = buffer_parse(data, MSG_COMPUTE);
             data->cid = msg->data.compute.cid;
             data->re  = msg->data.compute.re;
             data->im  = msg->data.compute.im;
             data->n_re = msg->data.compute.n_re;
             data->n_im = msg->data.compute.n_im;
-            free(msg);
-            data->is_cond_signaled = true;
-            fsync(data->is_cond_signaled);
-            fsync(data->cid);
-            fsync(data->re);
-            fsync(data->im);
-            fsync(data->n_re);
-            fsync(data->n_im);
-            pthread_mutex_lock(data->mtx);
             
+         
+            data->is_cond_signaled = true;
+            pthread_cond_broadcast(data->cond);
+
+            //pthread_mutex_lock(data->mtx);
+
             c = '\0';
+            free(msg);
+
+            
         }
         else if (c == MSG_ABORT){
-            printf("recieved end of computation\r\n");
+            //printf("recieved end of computation\r\n");
             data->abort = true;
             fsync(data->abort);
             pthread_mutex_unlock(data->mtx);
             message *msg = buffer_parse(data, MSG_ABORT);
             free(msg);
-            pthread_mutex_lock(data->mtx);
+            //pthread_mutex_lock(data->mtx);
             c = '\0';
 
         }
             
     }
       
-    pthread_mutex_unlock(data->mtx);
+    //pthread_mutex_unlock(data->mtx);
     data->quit = true;
     r = 1;
-    pthread_mutex_lock(data->mtx);
     pthread_cond_broadcast(data->cond);
-    pthread_mutex_unlock(data->mtx);
+    
+    //pthread_mutex_unlock(data->mtx);
     fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit input thread %lu\r\n", (unsigned long)pthread_self());
     return &r;
 }
@@ -223,36 +225,30 @@ void* calculation_thread(void*d){
 
     bool q = false;
     pthread_mutex_lock(data->mtx);
-    while(!q){
-        while ((!data->is_cond_signaled) && !q) {
-            pthread_cond_wait(data->cond, data->mtx); // wait for next event
+    while(!data->quit){
+        printf("INFO: Calculation thread is waiting\r\n");
+        while (!q && !data->is_cond_signaled) {
+            pthread_cond_wait(data->cond, data->mtx);
             q = data->quit;
         }
+        printf("INFO: Calculation thread is running\r\n");
 
-
-        if(!q && data->abort){
-            printf("ABORTING\r\n");
-            data->abort = false;
-            continue;
+        if(data->quit){
+            break;
         }
 
-        else if (!data->abort && !q) {
+        if (!data->abort && !q) {
             // compute julia set for each chunk (64x48 pixels on 640 x 480 screen)
             // send the result back to the input thread
             compute_julia_set(data);
 
-            
-
-            //printf("cid = %d, re = %lf, im = %lf, n_re = %d, n_im = %d\r\n", data->cid, data->re, data->im, data->n_re, data->n_im);
-
-            if(data->abort){
-                break;
-            }
         }
         data->is_cond_signaled = false;
         q = data->quit;
     }
     pthread_mutex_unlock(data->mtx);
+
+    printf("INFO: Calculation thread is exiting\r\n");
     return &r;
 }
 
@@ -329,11 +325,10 @@ void compute_julia_set(data_t *data) {
             // data->cid, x, y, iter
 
 
-            printf("cid = %d, x = %d, y = %d, iter = %d\r\n", data->cid, x, y, iter);
+            printf("cid = %d, iter = %d\r\n", data->cid, iter);
 
             // Here, `iter` is the number of iterations it took for Z to escape.
-            // You can use this value to color the pixel (x, y).
-            // If `iter` is data->n, the pixel is in the Julia set and is usually colored black.
+            
         }
     }
 }

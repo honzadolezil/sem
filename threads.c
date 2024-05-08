@@ -32,7 +32,6 @@
 
 typedef struct { // shared date structure
    int alarm_period;
-   int alarm_counter;
    int cid;
    bool quit;
    int fd; //forwarding
@@ -52,20 +51,19 @@ void call_termios(int reset); // raw mode terminal
 void* input_thread(void*);
 void* output_thread(void*);
 void* alarm_thread(void*);
-void* compute_thread(void* d);
 bool send_message(data_t *data, message *msg);
 message *buffer_parse(data_t *data, int message_type);
 
-void wait(int seconds);
+
 
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false};
-   enum { INPUT, OUTPUT, ALARM, COMPUTE, NUM_THREADS };
-   const char *threads_names[] = { "Input", "Output", "Alarm", "Compute"};
+   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false};
+   enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
+   const char *threads_names[] = { "Input", "Output", "Alarm", };
 
-   void* (*thr_functions[])(void*) = { input_thread, output_thread, alarm_thread, compute_thread};
+   void* (*thr_functions[])(void*) = { input_thread, output_thread, alarm_thread};
 
    pthread_t threads[NUM_THREADS];
    pthread_mutex_t mtx;
@@ -141,7 +139,7 @@ void* input_thread(void* d)
          case 's':
          {
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = 0.1, .c_im = 0.2, .d_re = 0.3, .d_im = 0.4, .n = 1}};
+            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = 1, .c_im = 2, .d_re = 0.3, .d_im = 0.4, .n = 60}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             data->is_compute_set = true;
@@ -167,10 +165,15 @@ void* input_thread(void* d)
                break;
             }
             data->abort = false;
-            data->is_cond2_signaled = true;
+
+            float re = (data->cid % 10) * SIZE_C_W; //start of the x-coords (real)
+            float im = (data->cid / 10) * SIZE_C_H;
+            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
+            send_message(data, &msg2);
+            fsync(data->fd); // sync the data
+            data->compute_used = true;
             pthread_mutex_lock(data->mtx);
-            pthread_cond_broadcast(data->cond2);
-            //printf("\033[1;34mINFO\033[0m: wake up compute thread\r\n");
+          
          }
          break;
          case 'a':
@@ -214,8 +217,6 @@ void* input_thread(void* d)
 
 void* output_thread(void* d)
 {
-
-
    data_t *data = (data_t*)d;
    static int r = 0;
    bool q = false;
@@ -308,82 +309,7 @@ void* alarm_thread(void* d)
 }
 
 
-void* compute_thread(void* d) 
-{
-   data_t *data = (data_t*)d;
-   static int r = 0;
 
-   bool q = false;
-   xwin_init(W, H);
-   pthread_mutex_lock(data->mtx);
-   while (!q) {
-      while ((!data->is_serial_open || !data->is_cond2_signaled) && !q) {
-         pthread_cond_wait(data->cond2, data->mtx); // wait for next event
-         q = data->quit;
-         
-      }
-
-      data->compute_used = true;
-      fsync(data->compute_used);
-
-      if (!q) {
-         message msg2;
-         while (data->cid <= NUM_CHUNKS) {
-            if (data->abort) {
-               printf("\033[1;33mWARNING\033[0m: Abort signal received\r\n");
-               printf("\033[1;32mHINT:\033[0m: If you want to continue computation, press 1\r\n");
-               data->abort = false;
-               data->cid--;
-               data->compute_used = false;
-               fsync(data->compute_used);
-               fsync(data->cid);
-               fsync(data->abort);
-               
-               break;
-            }
-            if (data->quit) {
-               break;
-            }
-            pthread_mutex_unlock(data->mtx);
-
-
-
-            float re = (data->cid % 10) * SIZE_C_W; //start of the x-coords (real)
-            float im = (data->cid / 10) * SIZE_C_H;
-            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = SIZE_C_W, .n_im = SIZE_C_H}};
-            data->cid++;
-            fsync(data->cid);
-            send_message(data, &msg2);
-            fsync(data->fd); // sync the data
-            
-            
-            
-            // here waits for the response and draws it on the screen using SDL
-            printf("\033[1;33mComputing...\033[0m %.2f%%\r", ((float)(data->cid)/NUM_CHUNKS * 100));
-            fflush(stdout);
-
-            pthread_mutex_lock(data->mtx);
-            
-            
-         
-         }
-         printf("\n");
-         data->compute_used = false;
-         fsync(data->compute_used);
-         fsync(data->cid);
-         fsync(data->abort);
-         if(data->cid == NUM_CHUNKS){
-            printf("\033[1;32mComputing finished\033[0m\r\n");
-         }
-        
-      }
-      data->is_cond2_signaled = false;
-      q = data->quit;
-   }
-   pthread_mutex_unlock(data->mtx);
-   xwin_close();
-   return &r;
-}
 
 bool send_message(data_t *data, message *msg){
    uint8_t msg_buf[sizeof(message)];
@@ -418,11 +344,6 @@ message *buffer_parse(data_t *data, int message_type){
 
 }
 
-void wait(int seconds) {
-   time_t start_time = time(NULL);
-   while (time(NULL) - start_time < seconds) {
-      // waiting...
-   }
-}
+
 
 /* end of threads.c */
