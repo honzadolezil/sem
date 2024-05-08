@@ -8,6 +8,7 @@
 #include <termios.h>
 #include <threads.h>
 #include <unistd.h> // for STDIN_FILENO
+#include <complex.h> // for julia set complex numbers
 
 #include <pthread.h>
 #include "messages.h"
@@ -32,6 +33,13 @@ typedef struct { // shared date structure;
     pthread_mutex_t *mtx;
     pthread_cond_t *cond;
 
+
+    //set compute data
+    double c_re;
+    double c_im;
+    double d_re;
+    double d_im;
+    int n;
 
 
     //computation data
@@ -152,12 +160,12 @@ void* input_thread(void* d)
             pthread_mutex_unlock(data->mtx);
             printf("INFO: recieved set compute\r\n");
             message *msg = buffer_parse(data, MSG_SET_COMPUTE);
-            double c_re = msg->data.set_compute.c_re;
-            double c_im = msg->data.set_compute.c_im;
-            double d_re = msg->data.set_compute.d_re;
-            double d_im = msg->data.set_compute.d_im;
-            int n = msg->data.set_compute.n;
-            printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\r\n", c_re, c_im, d_re, d_im, n);
+            data->c_re = msg->data.set_compute.c_re;
+            data->c_im = msg->data.set_compute.c_im;
+            data->d_re = msg->data.set_compute.d_re;
+            data->d_im = msg->data.set_compute.d_im;
+            data->n = msg->data.set_compute.n;
+            printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\r\n", data->c_re, data->c_im, data->d_re, data->d_im, data->n);
             c = '\0';
             free(msg);   
             pthread_mutex_lock(data->mtx);
@@ -218,6 +226,8 @@ void* calculation_thread(void*d){
             pthread_cond_wait(data->cond, data->mtx); // wait for next event
             q = data->quit;
         }
+
+
         if(!q && data->abort){
             printf("ABORTING\r\n");
             data->abort = false;
@@ -225,6 +235,11 @@ void* calculation_thread(void*d){
         }
 
         else if (!data->abort && !q) {
+            // compute julia set for each chunk (64x48 pixels on 640 x 480 screen)
+            // send the result back to the input thread
+
+            
+
             printf("cid = %d, re = %lf, im = %lf, n_re = %d, n_im = %d\r\n", data->cid, data->re, data->im, data->n_re, data->n_im);
 
             if(data->abort){
@@ -292,4 +307,30 @@ void call_termios(int reset)
       cfmakeraw(&tio);
       tcsetattr(STDIN_FILENO, TCSANOW, &tio);
    }
+}
+
+void compute_julia_set(data_t *data) {
+    for (int x = 0; x < data->n_re; x++) { //number of pixels in x-coords (chunk size)
+        for (int y = 0; y < data->n_im; y++) {  //number of pixels in y-coords (chunk size)
+            double complex Z = 0;
+            double complex C = (data->c_re + x * data->d_re) + (data->c_im + y * data->d_im) * I;
+
+            int iter = 0;
+            while (cabs(Z) < 2 && iter < data->n) {
+                Z = Z * Z + C;
+                iter++;
+            }
+
+
+            // here i will send the data back to the input thread
+            // data->cid, x, y, iter
+
+
+
+
+            // Here, `iter` is the number of iterations it took for Z to escape.
+            // You can use this value to color the pixel (x, y).
+            // If `iter` is data->n, the pixel is in the Julia set and is usually colored black.
+        }
+    }
 }

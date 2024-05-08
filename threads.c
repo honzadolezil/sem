@@ -19,7 +19,13 @@
 #define MY_DEVICE_IN "/tmp/pipe.in"
 
 
-#define NUM_CHUNKS 1690000
+#define NUM_CHUNKS 100
+#define SIZE_C_W 64
+#define SIZE_C_H 48
+#define W 640
+#define H 480
+#define N_RE 10
+#define N_IM 10
 #include "messages.h"
 #include "xwin_sdl.h"
 
@@ -38,6 +44,7 @@ typedef struct { // shared date structure
    pthread_cond_t *cond2;
    bool is_cond2_signaled;
    bool compute_used;
+   bool is_compute_set;
 } data_t;
 
 void call_termios(int reset); // raw mode terminal
@@ -54,8 +61,7 @@ void wait(int seconds);
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false};
-
+   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false};
    enum { INPUT, OUTPUT, ALARM, COMPUTE, NUM_THREADS };
    const char *threads_names[] = { "Input", "Output", "Alarm", "Compute"};
 
@@ -110,6 +116,7 @@ void* input_thread(void* d)
    int c;
    bool qq = false;
    
+   
    while((!qq)){ // until pipe isnt open - dont do anything
       pthread_mutex_lock(data->mtx); 
       qq = data->is_serial_open;
@@ -137,6 +144,8 @@ void* input_thread(void* d)
             msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = 0.1, .c_im = 0.2, .d_re = 0.3, .d_im = 0.4, .n = 1}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
+            data->is_compute_set = true;
+            fsync(data->is_compute_set);
             pthread_mutex_lock(data->mtx);
             printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
          
@@ -145,6 +154,12 @@ void* input_thread(void* d)
          case '1':
          {  
             pthread_mutex_unlock(data->mtx);
+            if(!data->is_compute_set){
+               printf("\033[1;33mWARNING\033[0m: Compute message is not set\r\n");
+               printf("\033[1;32mHINT:\033[0m: If you want to set compute message, press s\r\n");
+               pthread_mutex_lock(data->mtx);
+               break;
+            }
             if(data->compute_used){
                printf("\033[1;33mWARNING\033[0m: Compute thread is already running\r\n");
                printf("\033[1;32mHINT:\033[0m: If you want to abort computation, press a\r\n");
@@ -155,7 +170,7 @@ void* input_thread(void* d)
             data->is_cond2_signaled = true;
             pthread_mutex_lock(data->mtx);
             pthread_cond_broadcast(data->cond2);
-            printf("\033[1;34mINFO\033[0m: wake up compute thread\r\n");
+            //printf("\033[1;34mINFO\033[0m: wake up compute thread\r\n");
          }
          break;
          case 'a':
@@ -219,7 +234,7 @@ void* output_thread(void* d)
 
 
    //open SDL window
-   xwin_init(800, 300);
+   
    
    if (io_putc(data->fd, 'i') != 1) { // sends init byte
       fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the init byte\n");
@@ -255,7 +270,7 @@ void* output_thread(void* d)
    io_close(data->fd);
    io_close(data->rd);
    fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit output thread %lu\r\n", (unsigned long)pthread_self());
-   xwin_close();
+   
    return &r;
 }
 
@@ -285,6 +300,8 @@ void* alarm_thread(void* d)
       pthread_cond_broadcast(data->cond); // broadcast condition for output thread - to prevent buffer overflow
       pthread_mutex_unlock(data->mtx);
       xwin_poll_events();
+
+      
    }
    fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit alarm thread %lu\r\n", (unsigned long)pthread_self());
    return &r;
@@ -297,11 +314,13 @@ void* compute_thread(void* d)
    static int r = 0;
 
    bool q = false;
+   xwin_init(W, H);
    pthread_mutex_lock(data->mtx);
    while (!q) {
       while ((!data->is_serial_open || !data->is_cond2_signaled) && !q) {
          pthread_cond_wait(data->cond2, data->mtx); // wait for next event
          q = data->quit;
+         
       }
 
       data->compute_used = true;
@@ -309,8 +328,7 @@ void* compute_thread(void* d)
 
       if (!q) {
          message msg2;
-         
-         while (data->cid < NUM_CHUNKS) {
+         while (data->cid <= NUM_CHUNKS) {
             if (data->abort) {
                printf("\033[1;33mWARNING\033[0m: Abort signal received\r\n");
                printf("\033[1;32mHINT:\033[0m: If you want to continue computation, press 1\r\n");
@@ -327,19 +345,25 @@ void* compute_thread(void* d)
                break;
             }
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = 0.1, .im = 0.2, .n_re = 0, .n_im = 0}};
+
+
+
+            float re = (data->cid % 10) * SIZE_C_W; //start of the x-coords (real)
+            float im = ((float)data->cid / 10) * SIZE_C_H;
+            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             
             
             
             // here waits for the response and draws it on the screen using SDL
-            printf("\033[1;33mComputing...\033[0m %.2f%%\r", ((float)(data->cid+1)/NUM_CHUNKS * 100));
+            printf("\033[1;33mComputing...\033[0m %.2f%%\r", ((float)(data->cid)/NUM_CHUNKS * 100));
             fflush(stdout);
 
             pthread_mutex_lock(data->mtx);
             data->cid++;
             fsync(data->cid);
+         
          }
          printf("\n");
          data->compute_used = false;
@@ -355,6 +379,7 @@ void* compute_thread(void* d)
       q = data->quit;
    }
    pthread_mutex_unlock(data->mtx);
+   xwin_close();
    return &r;
 }
 
