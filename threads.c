@@ -1,5 +1,5 @@
 
-
+// - include guard -----------------------------------------------------------
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -19,8 +19,10 @@
 #define MY_DEVICE_IN "/tmp/pipe.in"
 
 
-#define NUM_CHUNKS 169
+#define NUM_CHUNKS 1690000
 #include "messages.h"
+#include "xwin_sdl.h"
+
 
 typedef struct { // shared date structure
    int alarm_period;
@@ -163,6 +165,9 @@ void* input_thread(void* d)
             fsync(data->abort); // sync the data
             printf("\n");
             //printf("\033[1;33mWARNING\033[0m: Abort computation message sent\r\n");
+            msg2 = (message){.type = MSG_ABORT,};
+            send_message(data, &msg2);
+            fsync(data->fd); // sync the data
             pthread_mutex_lock(data->mtx);
          }
          break;
@@ -194,6 +199,8 @@ void* input_thread(void* d)
 
 void* output_thread(void* d)
 {
+
+
    data_t *data = (data_t*)d;
    static int r = 0;
    bool q = false;
@@ -209,6 +216,10 @@ void* output_thread(void* d)
     }
    message msg  = {.type = MSG_STARTUP, .data.startup = { .message = "Henlo"}};
    send_message(data, &msg);
+
+
+   //open SDL window
+   xwin_init(800, 300);
    
    if (io_putc(data->fd, 'i') != 1) { // sends init byte
       fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the init byte\n");
@@ -219,8 +230,6 @@ void* output_thread(void* d)
    data->is_serial_open = true;
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
-      
-
       uint8_t c = '\0'; 
       io_getc_timeout(data->rd, 0,&c); 
       if(c == MSG_VERSION){
@@ -246,13 +255,9 @@ void* output_thread(void* d)
    io_close(data->fd);
    io_close(data->rd);
    fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit output thread %lu\r\n", (unsigned long)pthread_self());
+   xwin_close();
    return &r;
 }
-
-
-
-
-
 
 
 
@@ -314,6 +319,7 @@ void* compute_thread(void* d)
                fsync(data->compute_used);
                fsync(data->cid);
                fsync(data->abort);
+               
                break;
             }
             if (data->quit) {

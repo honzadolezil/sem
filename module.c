@@ -183,6 +183,17 @@ void* input_thread(void* d)
             
             c = '\0';
         }
+        else if (c == MSG_ABORT){
+            printf("recieved end of computation\r\n");
+            data->abort = true;
+            fsync(data->abort);
+            pthread_mutex_unlock(data->mtx);
+            message *msg = buffer_parse(data, MSG_ABORT);
+            free(msg);
+            pthread_mutex_lock(data->mtx);
+            c = '\0';
+
+        }
             
     }
       
@@ -207,9 +218,18 @@ void* calculation_thread(void*d){
             pthread_cond_wait(data->cond, data->mtx); // wait for next event
             q = data->quit;
         }
-        
-        if (!q) {
+        if(!q && data->abort){
+            printf("ABORTING\r\n");
+            data->abort = false;
+            continue;
+        }
+
+        else if (!data->abort && !q) {
             printf("cid = %d, re = %lf, im = %lf, n_re = %d, n_im = %d\r\n", data->cid, data->re, data->im, data->n_re, data->n_im);
+
+            if(data->abort){
+                break;
+            }
         }
         data->is_cond_signaled = false;
         q = data->quit;
