@@ -1,11 +1,11 @@
 CFLAGS+= -Wall -Werror -std=gnu99 -g
-LDFLAGS=-pthread
+LDFLAGS=-pthread -lm
 
 HW=prgsem
 BINARIES=prgsem-main module
 
 CFLAGS+=$(shell sdl2-config --cflags)
-LDFLAGS+=$(shell sdl2-config --libs) -lSDL2_image
+LDFLAGS+=$(shell sdl2-config --libs) -lSDL2_image 
 
 
 all: $(BINARIES)

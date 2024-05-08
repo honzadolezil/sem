@@ -59,6 +59,8 @@ void* calculation_thread(void*);
 message *buffer_parse(data_t *data, int message_type);
 bool send_message(data_t *data, message *msg);
 
+void compute_julia_set(data_t *data);
+
 int main(int argc, char *argv[])
 {
    data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false,};
@@ -237,10 +239,11 @@ void* calculation_thread(void*d){
         else if (!data->abort && !q) {
             // compute julia set for each chunk (64x48 pixels on 640 x 480 screen)
             // send the result back to the input thread
+            compute_julia_set(data);
 
             
 
-            printf("cid = %d, re = %lf, im = %lf, n_re = %d, n_im = %d\r\n", data->cid, data->re, data->im, data->n_re, data->n_im);
+            //printf("cid = %d, re = %lf, im = %lf, n_re = %d, n_im = %d\r\n", data->cid, data->re, data->im, data->n_re, data->n_im);
 
             if(data->abort){
                 break;
@@ -326,7 +329,7 @@ void compute_julia_set(data_t *data) {
             // data->cid, x, y, iter
 
 
-
+            printf("cid = %d, x = %d, y = %d, iter = %d\r\n", data->cid, x, y, iter);
 
             // Here, `iter` is the number of iterations it took for Z to escape.
             // You can use this value to color the pixel (x, y).

@@ -349,8 +349,10 @@ void* compute_thread(void* d)
 
 
             float re = (data->cid % 10) * SIZE_C_W; //start of the x-coords (real)
-            float im = ((float)data->cid / 10) * SIZE_C_H;
-            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
+            float im = (data->cid / 10) * SIZE_C_H;
+            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = SIZE_C_W, .n_im = SIZE_C_H}};
+            data->cid++;
+            fsync(data->cid);
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             
@@ -361,8 +363,8 @@ void* compute_thread(void* d)
             fflush(stdout);
 
             pthread_mutex_lock(data->mtx);
-            data->cid++;
-            fsync(data->cid);
+            
+            
          
          }
          printf("\n");
