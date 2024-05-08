@@ -284,6 +284,7 @@ void* alarm_thread(void* d)
       q = data->quit;
       pthread_cond_broadcast(data->cond); // broadcast condition for output thread - to prevent buffer overflow
       pthread_mutex_unlock(data->mtx);
+      xwin_poll_events();
    }
    fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit alarm thread %lu\r\n", (unsigned long)pthread_self());
    return &r;
