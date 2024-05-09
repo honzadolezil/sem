@@ -251,9 +251,11 @@ void* calculation_thread(void*d){
                 
                 if(data->cid == 100){
                     printf("INFO: Calculation thread is done\r\n");
+                    pthread_mutex_unlock(data->mtx);
                     message msg = {.type = MSG_DONE};
                     send_message(data, &msg);
                     fsync(data->rd);
+                    pthread_mutex_lock(data->mtx);
                     break;
                 }
 
