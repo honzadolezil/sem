@@ -36,6 +36,8 @@ typedef struct { // shared date structure;
     pthread_mutex_t *mtx;
     pthread_cond_t *cond;
 
+    bool is_abort;
+
 
     //set compute data
     double c_re;
@@ -191,6 +193,8 @@ void* input_thread(void* d)
             data->n_re = msg->data.compute.n_re;
             data->n_im = msg->data.compute.n_im;         
             data->is_cond_signaled = true;
+            data->abort = false;
+            data->is_abort = false;
             pthread_cond_broadcast(data->cond);
 
             //pthread_mutex_lock(data->mtx);
@@ -203,7 +207,6 @@ void* input_thread(void* d)
         else if (c == MSG_ABORT){
             //printf("recieved end of computation\r\n");
             data->abort = true;
-            fsync(data->abort);
             pthread_mutex_unlock(data->mtx);
             message *msg = buffer_parse(data, MSG_ABORT);
             free(msg);
@@ -272,6 +275,9 @@ void* calculation_thread(void*d){
                 printf("INFO: Chunk %d: re = %lf, im = %lf\r\n", data->cid, data->re, data->im);                
 
                 compute_julia_set(data);
+                if(data->is_abort){
+                    break;
+                }
                 data->cid++;
                 q = data->quit;
             }
@@ -357,6 +363,16 @@ void compute_julia_set(data_t *data) {
                 Z = Z * Z + C;
                 iter++;
 
+            }
+            if(data->abort){
+                pthread_mutex_unlock(data->mtx);
+                message msg = {.type = MSG_ABORT};
+                send_message(data, &msg);
+                fsync(data->rd);
+                data->is_cond_signaled = false;
+                data->is_abort = true;
+                pthread_mutex_lock(data->mtx);
+                return;
             }
             //printf("INFO: Chunk %d: x = %d, y = %d, iter = %d\r\n", data->cid, x, y, iter);
             pthread_mutex_unlock(data->mtx);
