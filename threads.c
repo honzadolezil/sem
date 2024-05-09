@@ -144,7 +144,7 @@ void* input_thread(void* d)
          case 's':
          {
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = 11/2400, .n = 60}};
+            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)11/2400, .n = 60}};
             data->n = 60;
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
@@ -301,6 +301,7 @@ void* output_thread(void* d)
          double t = (double)msg->data.compute_data.iter / data->n; // t is in [0, 1]
          
          if(t == 1){
+            printf("BLACK\r\n");
             uint8_t red = 0; // red component
             uint8_t green = 0; // green component
             uint8_t blue = 0; // blue component

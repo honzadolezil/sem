@@ -245,16 +245,29 @@ void* calculation_thread(void*d){
 
             // compute julia set for each chunk (64x48 pixels on 640 x 480 screen)
             // send the result back to the input thread
-            
+            double start_re = data->re;
+            double start_im = data->im;
             while(!q){
                 
                 if(data->cid == 100){
                     printf("INFO: Calculation thread is done\r\n");
                     break;
                 }
-                
+
+                int chunk_width = 64;
+                int chunk_height = 48;
+                int chunks_per_row = 640 / chunk_width;
+
+                int x_im = (data->cid % chunks_per_row) * chunk_width; //first chunk (real)
+                int y_im = (data->cid / chunks_per_row) * chunk_height; // forst chunk (imaginary)
+
+                printf("INFO: Chunk %d: x_im = %d, y_im = %d\r\n", data->cid, x_im, y_im);
+                data->re =start_re + x_im * data->d_re;
+                data->im = start_im + y_im * data->d_im;
+                printf("INFO: Chunk %d: re = %lf, im = %lf\r\n", data->cid, data->re, data->im);                
 
                 compute_julia_set(data);
+                data->cid++;
               
 
 
@@ -356,7 +369,7 @@ void compute_julia_set(data_t *data) {
         
     }
     printf("INFO: Chunk %d is done\r\n", data->cid);
-    data->re += CHUNK_SIZE_W * data->d_re;
 
-    data->cid++;
+
+    
 }
