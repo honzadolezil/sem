@@ -145,6 +145,7 @@ void* input_thread(void* d)
         uint8_t c = '\0';
         io_getc_timeout(data->fd, 0,&c); 
         if (c == 'q'){
+            data->quit = true;
             break;
         }    
         else if (c == MSG_GET_VERSION){//sends firmware info
@@ -229,20 +230,19 @@ void* calculation_thread(void*d){
 
     bool q = false;
     pthread_mutex_lock(data->mtx);
-    while(!data->quit){
+    while(!q){
         //printf("INFO: Calculation thread is waiting\r\n");
         while (!q && !data->is_cond_signaled) {
             pthread_cond_wait(data->cond, data->mtx);
             q = data->quit;
         }
         //printf("INFO: Calculation thread is running\r\n");
-
+        q = data->quit;
         if(data->quit){
             break;
         }
 
         if (!data->abort && !q) {
-
             // compute julia set for each chunk (64x48 pixels on 640 x 480 screen)
             // send the result back to the input thread
             double start_re = data->re;
@@ -251,6 +251,9 @@ void* calculation_thread(void*d){
                 
                 if(data->cid == 100){
                     printf("INFO: Calculation thread is done\r\n");
+                    message msg = {.type = MSG_DONE};
+                    send_message(data, &msg);
+                    fsync(data->rd);
                     break;
                 }
 
@@ -268,13 +271,10 @@ void* calculation_thread(void*d){
 
                 compute_julia_set(data);
                 data->cid++;
-              
-
-
+                q = data->quit;
             }
-            
-
         }
+
         data->is_cond_signaled = false;
         q = data->quit;
     }

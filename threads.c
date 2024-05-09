@@ -282,6 +282,15 @@ void* output_thread(void* d)
          printf("\033[1;31mERROR\033[0m: Module sent error\r\n");
       }
 
+      if(c == MSG_DONE){
+         //printf("Done message recieved:");
+         message *msg = buffer_parse(data, MSG_DONE);
+         printf("\033[1;34mINFO\033[0m: Done message recieved\r\n");
+         data->compute_used = false;
+         free(msg);
+         c = '\0';
+      }
+
 
       if(c == MSG_COMPUTE_DATA){
          //printf("Compute data recieved:");
@@ -324,7 +333,11 @@ void* output_thread(void* d)
          }
 
          
-         if(data->cid != data->prev_cid || data->cid == NUM_CHUNKS -1){ // if the chunk is done (cid changed
+         if(data->cid != data->prev_cid){ // if the chunk is done (cid changed
+            xwin_redraw(W, H, img);
+         }
+
+         else if(data->cid == 99 && idx == 3*W*H){ // if the last chunk is done
             xwin_redraw(W, H, img);
          }
          data->prev_cid = data->cid;
