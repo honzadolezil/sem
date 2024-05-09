@@ -35,6 +35,7 @@
 typedef struct { // shared date structure
    int alarm_period;
    int cid;
+   int prev_cid;
    bool quit;
    int fd; //forwarding
    int rd;// recieving
@@ -48,6 +49,8 @@ typedef struct { // shared date structure
    bool is_compute_set;
 
    uint8_t n;
+
+
    
 } data_t;
 
@@ -174,6 +177,7 @@ void* input_thread(void* d)
 
             double re = -1.6; //start of the x-coords (real]
             double im =-1.1; //start of the y-coords (imaginary)
+            data->prev_cid = data->cid;
             msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
@@ -282,17 +286,15 @@ void* output_thread(void* d)
       if(c == MSG_COMPUTE_DATA){
          //printf("Compute data recieved:");
          message *msg = buffer_parse(data, MSG_COMPUTE_DATA);
-         //printf("\033[1;32mCOMPUTE_DATA\033[0m: Chunk ID = %d, x = %d, y = %d, iter = %d\r\n", 
-         /*msg->data.compute_data.cid, 
-         msg->data.compute_data.i_re, 
-         msg->data.compute_data.i_im, 
-         msg->data.compute_data.iter);
-         */
+      
          uint8_t i_re = msg->data.compute_data.i_re;
          uint8_t i_im = msg->data.compute_data.i_im;
 
          int x_im = (msg->data.compute_data.cid % 10)*64;  // starting pos for redraw - one chunk
          int y_im = (msg->data.compute_data.cid / 10)*48;
+
+         data->cid = msg->data.compute_data.cid;
+         
         
          int x = x_im + i_re;  // x coordinate of the pixel in the image
          int y = y_im + i_im;  // y coordinate of the pixel in the image
@@ -301,7 +303,6 @@ void* output_thread(void* d)
          double t = (double)msg->data.compute_data.iter / data->n; // t is in [0, 1]
          
          if(t == 1){
-            printf("BLACK\r\n");
             uint8_t red = 0; // red component
             uint8_t green = 0; // green component
             uint8_t blue = 0; // blue component
@@ -323,9 +324,10 @@ void* output_thread(void* d)
          }
 
          
-
-         xwin_redraw(W, H, img);
-
+         if(data->cid != data->prev_cid || data->cid == NUM_CHUNKS -1){ // if the chunk is done (cid changed
+            xwin_redraw(W, H, img);
+         }
+         data->prev_cid = data->cid;
 
 
          free(msg);
