@@ -1,10 +1,12 @@
 
 // - include guard -----------------------------------------------------------
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
 #include <fcntl.h>
+#include <sys/types.h>
 #include <time.h>
 
 #include <string.h>
@@ -44,6 +46,9 @@ typedef struct { // shared date structure
    bool is_cond2_signaled;
    bool compute_used;
    bool is_compute_set;
+
+   uint8_t n;
+   
 } data_t;
 
 void call_termios(int reset); // raw mode terminal
@@ -139,7 +144,8 @@ void* input_thread(void* d)
          case 's':
          {
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = 1, .c_im = 2, .d_re = 0.3, .d_im = 0.4, .n = 60}};
+            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = 11/2400, .n = 60}};
+            data->n = 60;
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             data->is_compute_set = true;
@@ -166,8 +172,8 @@ void* input_thread(void* d)
             }
             data->abort = false;
 
-            float re = (data->cid % 10) * SIZE_C_W; //start of the x-coords (real)
-            float im = (data->cid / 10) * SIZE_C_H;
+            double re = -1.6; //start of the x-coords (real]
+            double im =-1.1; //start of the y-coords (imaginary)
             msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
@@ -235,8 +241,21 @@ void* output_thread(void* d)
 
 
    //open SDL window
-   
-   
+   xwin_init(W, H);
+   unsigned char *img = malloc(W * H * 3);  // 3 bytes per pixel for RGB
+   if (img == NULL) {
+      fprintf(stderr, "Failed to allocate memory for image\n");
+      exit(1);
+   }
+   for (int y = 0; y < H; ++y) { // fill the image with some color
+            for (int x = 0; x < W; ++x) {
+               int idx = (y * W + x) * 3;
+               img[idx] = 100; // red component
+               img[idx + 1] = 0; // green component
+               img[idx + 2] = 10; // blue component
+            }
+   }
+   xwin_redraw(W, H, img);
    if (io_putc(data->fd, 'i') != 1) { // sends init byte
       fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the init byte\n");
       exit(1);
@@ -258,6 +277,59 @@ void* output_thread(void* d)
       if(c == MSG_ERROR){
          printf("\033[1;31mERROR\033[0m: Module sent error\r\n");
       }
+
+
+      if(c == MSG_COMPUTE_DATA){
+         //printf("Compute data recieved:");
+         message *msg = buffer_parse(data, MSG_COMPUTE_DATA);
+         //printf("\033[1;32mCOMPUTE_DATA\033[0m: Chunk ID = %d, x = %d, y = %d, iter = %d\r\n", 
+         /*msg->data.compute_data.cid, 
+         msg->data.compute_data.i_re, 
+         msg->data.compute_data.i_im, 
+         msg->data.compute_data.iter);
+         */
+         uint8_t i_re = msg->data.compute_data.i_re;
+         uint8_t i_im = msg->data.compute_data.i_im;
+
+         int x_im = (msg->data.compute_data.cid % 10)*64;  // starting pos for redraw - one chunk
+         int y_im = (msg->data.compute_data.cid / 10)*48;
+        
+         int x = x_im + i_re;  // x coordinate of the pixel in the image
+         int y = y_im + i_im;  // y coordinate of the pixel in the image
+         int idx = (y * W + x) * 3;  // index of the pixel in the 1D array
+
+         double t = (double)msg->data.compute_data.iter / data->n; // t is in [0, 1]
+         
+         if(t == 1){
+            uint8_t red = 0; // red component
+            uint8_t green = 0; // green component
+            uint8_t blue = 0; // blue component
+
+            img[idx] = red; // red component
+            img[idx + 1] = green; // green component
+            img[idx + 2] = blue; // blue component
+
+         }
+         else{
+
+            uint8_t red = (uint8_t)(9 * (1 - t) * t * t * t * 255); // red component
+            uint8_t green = (uint8_t)(15 * (1 - t) * (1 - t) * t * t * 255); // green component
+            uint8_t blue = (uint8_t)(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255); // blue component
+
+            img[idx] = red; // red component
+            img[idx + 1] = green; // green component
+            img[idx + 2] = blue; // blue component
+         }
+
+         
+
+         xwin_redraw(W, H, img);
+
+
+
+         free(msg);
+         c = '\0';
+      }
    q = data->quit;
    fflush(stdout);
    }
@@ -271,7 +343,8 @@ void* output_thread(void* d)
    io_close(data->fd);
    io_close(data->rd);
    fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit output thread %lu\r\n", (unsigned long)pthread_self());
-   
+   xwin_close();
+   free(img);
    return &r;
 }
 
@@ -328,8 +401,10 @@ message *buffer_parse(data_t *data, int message_type){
     int len = 0;
     uint8_t msg_buf[sizeof(message)];
     int i = 0;
+    get_message_size(message_type, &len);
     msg_buf[i++] = message_type; // add the first byte 
-    while((io_getc_timeout(data->rd, 0,&c) == 1)){
+    while((i < len)){
+        io_getc_timeout(data->rd, 0, &c);
         msg_buf[i++] = c;
     }
     message *msg = malloc(sizeof(message));

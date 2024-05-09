@@ -19,6 +19,9 @@
 
 void call_termios(int reset);
 
+#define SIZE_C_W 64
+#define SIZE_C_H 48
+#define NUM_CHUNKS 100
 
 typedef struct { // shared date structure;
     int alarm_period;
@@ -43,7 +46,7 @@ typedef struct { // shared date structure;
 
 
     //computation data
-    uint8_t cid;;
+    uint8_t cid;
     double re;
     double im;
     uint8_t n_re;
@@ -61,9 +64,12 @@ bool send_message(data_t *data, message *msg);
 
 void compute_julia_set(data_t *data);
 
+#define CHUNK_SIZE_W 64
+#define CHUNK_SIZE_H 48
+
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond_signaled = false};
+   data_t data = { .alarm_period = 0, .alarm_counter = 0, .quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond_signaled = false, .cid = 0, .re = 0, .im = 0, .n_re = 0, .n_im = 0, .is_message_recieved = false, .mtx = NULL, .cond = NULL, .c_re = 0, .c_im = 0, .d_re = 0, .d_im = 0, .n = 0};
 
    enum { INPUT, CALCULATION, NUM_THREADS };
    const char *threads_names[] = { "Input", "Calculation",};
@@ -179,12 +185,10 @@ void* input_thread(void* d)
             printf("INFO: recieved compute\r\n");
             message *msg = buffer_parse(data, MSG_COMPUTE);
             data->cid = msg->data.compute.cid;
-            data->re  = msg->data.compute.re;
-            data->im  = msg->data.compute.im;
+            data->re = msg->data.compute.re;
+            data->im = msg->data.compute.im;
             data->n_re = msg->data.compute.n_re;
-            data->n_im = msg->data.compute.n_im;
-            
-         
+            data->n_im = msg->data.compute.n_im;         
             data->is_cond_signaled = true;
             pthread_cond_broadcast(data->cond);
 
@@ -226,21 +230,36 @@ void* calculation_thread(void*d){
     bool q = false;
     pthread_mutex_lock(data->mtx);
     while(!data->quit){
-        printf("INFO: Calculation thread is waiting\r\n");
+        //printf("INFO: Calculation thread is waiting\r\n");
         while (!q && !data->is_cond_signaled) {
             pthread_cond_wait(data->cond, data->mtx);
             q = data->quit;
         }
-        printf("INFO: Calculation thread is running\r\n");
+        //printf("INFO: Calculation thread is running\r\n");
 
         if(data->quit){
             break;
         }
 
         if (!data->abort && !q) {
+
             // compute julia set for each chunk (64x48 pixels on 640 x 480 screen)
             // send the result back to the input thread
-            compute_julia_set(data);
+            
+            while(!q){
+                
+                if(data->cid == 100){
+                    printf("INFO: Calculation thread is done\r\n");
+                    break;
+                }
+                
+
+                compute_julia_set(data);
+              
+
+
+            }
+            
 
         }
         data->is_cond_signaled = false;
@@ -308,27 +327,36 @@ void call_termios(int reset)
    }
 }
 
-void compute_julia_set(data_t *data) {
-    for (int x = 0; x < data->n_re; x++) { //number of pixels in x-coords (chunk size)
-        for (int y = 0; y < data->n_im; y++) {  //number of pixels in y-coords (chunk size)
-            double complex Z = 0;
-            double complex C = (data->c_re + x * data->d_re) + (data->c_im + y * data->d_im) * I;
 
-            int iter = 0;
+
+void compute_julia_set(data_t *data) {
+    
+    uint8_t iter;
+    double complex Z;
+    double complex C = data->c_re + data->c_im * I;
+    for (uint8_t x = 0; x <= CHUNK_SIZE_W; x++) { // for size of chunk 
+        for (uint8_t y = 0; y <= CHUNK_SIZE_H; y++) { // for size of chunk
+            Z = (data->re + x * data->d_re) + (data->im + y * data->d_im) * I; 
+            iter = 0;
             while (cabs(Z) < 2 && iter < data->n) {
                 Z = Z * Z + C;
                 iter++;
+
             }
+            //printf("INFO: Chunk %d: x = %d, y = %d, iter = %d\r\n", data->cid, x, y, iter);
+            pthread_mutex_unlock(data->mtx);
+            message msg = {.type = MSG_COMPUTE_DATA, .data.compute_data = {data->cid, x, y, iter}}; // for each pixel = x, y in given chunk
+            send_message(data, &msg);
+            fsync(data->rd);
+            //printf("INFO: sent compute data\r\n");
+            pthread_mutex_lock(data->mtx);
 
 
-            // here i will send the data back to the input thread
-            // data->cid, x, y, iter
-
-
-            printf("cid = %d, iter = %d\r\n", data->cid, iter);
-
-            // Here, `iter` is the number of iterations it took for Z to escape.
-            
         }
+        
     }
+    printf("INFO: Chunk %d is done\r\n", data->cid);
+    data->re += CHUNK_SIZE_W * data->d_re;
+
+    data->cid++;
 }

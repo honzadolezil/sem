@@ -70,20 +70,19 @@ void xwin_close()
    SDL_Quit();
 }
 
-void xwin_redraw(int w, int h, unsigned char *img)
-{
-   assert(img && win);
-   SDL_Surface *scr = SDL_GetWindowSurface(win);
-   for(int y = 0; y < scr->h; ++y) {
-      for(int x = 0; x < scr->w; ++x) {
-         const int idx = (y * scr->w + x) * scr->format->BytesPerPixel;
-         Uint8 *px = (Uint8*)scr->pixels + idx;
-         *(px + scr->format->Rshift / 8) = *(img++);
-         *(px + scr->format->Gshift / 8) = *(img++);
-         *(px + scr->format->Bshift / 8) = *(img++);
-      }
-   }
-   SDL_UpdateWindowSurface(win);
+void xwin_redraw(int w, int h, unsigned char *img) {
+  assert(img && win);
+  SDL_Surface *scr = SDL_GetWindowSurface(win);
+  for (int y = 0; y < scr->h; ++y) {
+    for (int x = 0; x < scr->w; ++x) {
+      const int idx = (y * scr->w + x) * scr->format->BytesPerPixel;
+      Uint8 *px = (Uint8 *)scr->pixels + idx;
+      *(px + scr->format->Rshift / 8) = *(img++);
+      *(px + scr->format->Gshift / 8) = *(img++);
+      *(px + scr->format->Bshift / 8) = *(img++);
+    }
+  }
+  SDL_UpdateWindowSurface(win);
 }
 
 void xwin_poll_events(void) 

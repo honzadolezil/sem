@@ -4,7 +4,7 @@
     "name": "(gdb) Launch",
     "type": "cppdbg",
     "request": "launch",
-    "program": "${workspaceFolder}/module",
+    "program": "${workspaceFolder}/prgsem-main",
     "args": [],
     "stopAtEntry": false,
     "cwd": "${fileDirname}",
