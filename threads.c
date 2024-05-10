@@ -43,8 +43,6 @@ typedef struct { // shared date structure
    bool abort;
    pthread_mutex_t *mtx;
    pthread_cond_t *cond;
-   pthread_cond_t *cond2;
-   bool is_cond2_signaled;
    bool compute_used;
    bool is_compute_set;
 
@@ -61,6 +59,12 @@ typedef struct { // shared date structure
 } data_t;
 
 void call_termios(int reset); // raw mode terminal
+void create_threads(pthread_t threads[], void *(*thr_functions[])(void *),
+                    data_t *data, const char *threads_names[]);
+void join_threads(pthread_t threads[], const char *threads_names[]);
+
+void init_mutex_cond(pthread_mutex_t *mtx, pthread_cond_t *cond, data_t *data);
+void call_termios(int reset);
 
 void* input_thread(void*);
 void* output_thread(void*);
@@ -68,59 +72,36 @@ void* alarm_thread(void*);
 bool send_message(data_t *data, message *msg);
 message *buffer_parse(data_t *data, int message_type);
 
+enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
 
 
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false, .module_quit = false };
-   enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
+   call_termios(0);
+   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false, .module_quit = false };
    const char *threads_names[] = { "Input", "Output", "Alarm", };
-
    void* (*thr_functions[])(void*) = { input_thread, output_thread, alarm_thread};
 
    pthread_t threads[NUM_THREADS];
+
+   // mutex and condition variable
    pthread_mutex_t mtx;
    pthread_cond_t cond;
-   pthread_mutex_init(&mtx, NULL); // initialize mutex with default attributes
-   pthread_cond_init(&cond, NULL); // initialize condition variable with default attributes
-   data.mtx = &mtx;                // make the mutex accessible from the shared data structure
-   data.cond = &cond;              // make the cond accessible from the shared data structure
-   data.cond2 = &cond;
+   init_mutex_cond(&mtx, &cond, &data);      
 
-   call_termios(0);
+   // create threads and wait for their termination
+   create_threads(threads, thr_functions, &data, threads_names);
+   join_threads(threads, threads_names);
 
-   for (int i = 0; i < NUM_THREADS; ++i) { // create threads 
-      int r = pthread_create(&threads[i], NULL, thr_functions[i], &data);
-      printf("\033[1;35mTHREAD\033[0m: Create thread '%s' %s\r\n", threads_names[i], ( r == 0 ? "OK" : "FAIL") );
-   }
-
-   int *ex;
-   for (int i = 0; i < NUM_THREADS; ++i) { // join threads so main doesnt end before threads
-      printf("\033[1;35mTHREAD\033[0m: Call join to the thread %s\r\n", threads_names[i]);
-      int r = pthread_join(threads[i], (void*)&ex);
-      printf("\033[1;35mTHREAD\033[0m: Joining the thread %s has been %s - exit value %i\r\n", threads_names[i], (r == 0 ? "OK" : "FAIL"), *ex);
-   }
-
+   // clean up
+   pthread_mutex_destroy(&mtx);
+   pthread_cond_destroy(&cond);
    call_termios(1); // restore terminal settings
    return EXIT_SUCCESS;
 }
 
-// - function -----------------------------------------------------------------
-void call_termios(int reset)
-{
-   static struct termios tio, tioOld;
-   tcgetattr(STDIN_FILENO, &tio);
-   if (reset) {
-      tcsetattr(STDIN_FILENO, TCSANOW, &tioOld);
-   } else {
-      tioOld = tio; //backup 
-      cfmakeraw(&tio);
-      tcsetattr(STDIN_FILENO, TCSANOW, &tio);
-   }
-}
 
-// - function -----------------------------------------------------------------
 void* input_thread(void* d)
 {
    data_t *data = (data_t*)d;
@@ -136,52 +117,42 @@ void* input_thread(void* d)
    }
    message msg2;
    while ((c = getchar()) != 'q') {
-      pthread_mutex_lock(data->mtx);
-      int period = data->alarm_period;
       switch (c) {
          case 'g':
             {
-               pthread_mutex_unlock(data->mtx);
                msg2 = (message){.type = MSG_GET_VERSION,};
                send_message(data, &msg2);
                fsync(data->fd); // sync the data
-               pthread_mutex_lock(data->mtx);
                printf("\033[1;34mINFO\033[0m: Get version set\r\n");
 
             }
             break;
          case 's':
          {
-            pthread_mutex_unlock(data->mtx);
             msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60}};
             data->n = 60;
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             data->is_compute_set = true;
-            pthread_mutex_lock(data->mtx);
             printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
          
          }
          break;
          case '1':
          {  
-            pthread_mutex_unlock(data->mtx);
             if(!data->is_compute_set){
                printf("\033[1;33mWARNING\033[0m: Compute message is not set\r\n");
                printf("\033[1;32mHINT:\033[0m: If you want to set compute message, press s\r\n");
-               pthread_mutex_lock(data->mtx);
                break;
             }
             if(data->compute_used){
                printf("\033[1;33mWARNING\033[0m: Compute thread is already running\r\n");
                printf("\033[1;32mHINT:\033[0m: If you want to abort computation, press a\r\n");
-               pthread_mutex_lock(data->mtx);
                break;
             }
             if(data->compute_done){
                printf("\033[1;33mWARNING\033[0m: Compute thread is already done\r\n");
                printf("\033[1;32mHINT:\033[0m: If you want to reset cid, press r\r\n");
-               pthread_mutex_lock(data->mtx);
                break;
             }
             data->abort = false;
@@ -193,7 +164,6 @@ void* input_thread(void* d)
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             data->compute_used = true;
-            pthread_mutex_lock(data->mtx);
           
          }
          break;
@@ -209,37 +179,26 @@ void* input_thread(void* d)
          }
          break;
 
-
          case 'a':
          {
-            pthread_mutex_unlock(data->mtx);
             data->abort = true;
             data->compute_used = false;
             printf("\n");
-            //printf("\033[1;33mWARNING\033[0m: Abort computation message sent\r\n");
             msg2 = (message){.type = MSG_ABORT,};
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
-            pthread_mutex_lock(data->mtx);
          }
          break;
          case 'r':
          {
-            pthread_mutex_unlock(data->mtx);
             data->cid = 0;
             printf("\033[1;34mINFO\033[0m: Reset cid\r\n");
             data->compute_done = false;
-            pthread_mutex_lock(data->mtx);
          }
       }
-      if (data->alarm_period != period) {
-         pthread_cond_signal(data->cond); // signal the output thread to refresh 
-      }
-      data->alarm_period = period;
-      pthread_mutex_unlock(data->mtx);
+      
    }
 
-   pthread_mutex_unlock(data->mtx);
    data->quit = true;
    r = 1;
    pthread_mutex_lock(data->mtx);
@@ -337,7 +296,6 @@ void* output_thread(void* d)
       }
 
       if(c == MSG_ABORT){
-         printf("Abort message recieved:\r\n");
          message *msg = buffer_parse(data, MSG_ABORT);
          printf("\033[1;33mWARNING\033[0m: Abort message recieved\r\n");
          data->compute_used = false;
@@ -489,6 +447,52 @@ message *buffer_parse(data_t *data, int message_type){
     return msg;
 
 }
+
+
+void create_threads(pthread_t threads[], void *(*thr_functions[])(void *),
+                    data_t *data, const char *threads_names[]) {
+  for (int i = 0; i < NUM_THREADS; ++i) { // create threads
+    int r = pthread_create(&threads[i], NULL, thr_functions[i], data);
+    printf("\033[1;35mTHREAD\033[0m: Create thread '%s' %s\r\n",
+           threads_names[i], (r == 0 ? "OK" : "FAIL"));
+  }
+}
+
+void join_threads(pthread_t threads[], const char *threads_names[]) {
+  int *ex;
+  for (int i = 0; i < NUM_THREADS;
+       ++i) { // join threads so main doesnt end before threads
+    printf("\033[1;35mTHREAD\033[0m: Call join to the thread %s\r\n",
+           threads_names[i]);
+    int r = pthread_join(threads[i], (void *)&ex);
+    printf("\033[1;35mTHREAD\033[0m: Joining the thread %s has been %s - exit "
+           "value %i\r\n",
+           threads_names[i], (r == 0 ? "OK" : "FAIL"), *ex);
+  }
+}
+
+void init_mutex_cond(pthread_mutex_t *mtx, pthread_cond_t *cond, data_t *data) {
+  pthread_mutex_init(mtx, NULL); // initialize mutex with default attributes
+  pthread_cond_init(
+      cond, NULL); // initialize condition variable with default attributes
+  data->mtx = mtx; // make the mutex accessible from the shared data structure
+  data->cond = cond;
+}
+
+void call_termios(int reset)
+{
+   static struct termios tio, tioOld;
+   tcgetattr(STDIN_FILENO, &tio);
+   if (reset) {
+      tcsetattr(STDIN_FILENO, TCSANOW, &tioOld);
+   } else {
+      tioOld = tio; //backup 
+      cfmakeraw(&tio);
+      tcsetattr(STDIN_FILENO, TCSANOW, &tio);
+   }
+}
+
+
 
 
 
