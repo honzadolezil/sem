@@ -76,6 +76,9 @@ void handle_reset(data_t* data);
 
 void open_files(data_t* data);
 
+unsigned char* allocate_image_buf(int width, int height);
+void default_redraw(unsigned char* img, int width, int height);
+
 
 void* input_thread(void*);
 void* output_thread(void*);
@@ -181,30 +184,14 @@ void* output_thread(void* d)
    //open SDL window
    xwin_init(W, H);
   
-   unsigned char *img = malloc(W * H * 3);  // 3 bytes per pixel for RGB
-   if (img == NULL) {
-      fprintf(stderr, "Failed to allocate memory for image\n");
-      exit(1);
-   }
-
- 
-
-   for (int y = 0; y < H; ++y) { // fill the image with some color
-            for (int x = 0; x < W; ++x) {
-               int idx = (y * W + x) * 3;
-               img[idx] = 100; // red component
-               img[idx + 1] = 0; // green component
-               img[idx + 2] = 10; // blue component
-            }
-   }
-   xwin_redraw(W, H, img);
+   unsigned char *img = allocate_image_buf(W, H);
+   default_redraw(img, W, H);
    
 
    if (io_putc(data->fd, 'i') != 1) { // sends init byte
       fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the init byte\n");
       exit(1);
    }
-   fsync(data->fd); // sync the data
    pthread_mutex_lock(data->mtx);
    data->is_serial_open = true;
    while (!q) { // main loop for data output
@@ -225,15 +212,7 @@ void* output_thread(void* d)
       if(data->refresh_screen){
          printf("\033[1;34mINFO\033[0m: Refreshing screen\r\n");
          data->refresh_screen = false;
-            for (int y = 0; y < H; ++y) { // fill the image with some color
-            for (int x = 0; x < W; ++x) {
-               int idx = (y * W + x) * 3;
-               img[idx] = 100; // red component
-               img[idx + 1] = 0; // green component
-               img[idx + 2] = 10; // blue component
-            }
-         }
-         xwin_redraw(W, H, img);
+         default_redraw(img, W, H);
       }
 
       if(c == MSG_DONE){
@@ -319,7 +298,6 @@ void* output_thread(void* d)
       fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the end byte\r\n");
       exit(1);
    }
-   fsync(data->fd); // sync the data
    io_close(data->fd);
    io_close(data->rd);
    fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit output thread %lu\r\n", (unsigned long)pthread_self());
@@ -449,15 +427,13 @@ void call_termios(int reset)
 void handle_get_version(data_t* data) {
     message msg = {.type = MSG_GET_VERSION};
     send_message(data, &msg);
-    fsync(data->fd); // sync the data
-    printf("\033[1;34mINFO\033[0m: Get version set\r\n");
+     printf("\033[1;34mINFO\033[0m: Get version set\r\n");
 }
 void handle_set_compute(data_t* data) {
     message msg = {.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60}};
     data->n = 60;
     send_message(data, &msg);
-    fsync(data->fd); // sync the data
-    data->is_compute_set = true;
+     data->is_compute_set = true;
     printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
 }
 void handle_compute_start(data_t* data) {
@@ -483,7 +459,6 @@ void handle_compute_start(data_t* data) {
    data->prev_cid = data->cid;
    message msg2 = {.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
    send_message(data, &msg2);
-   fsync(data->fd); // sync the data
    data->compute_used = true;
 }
 
@@ -502,8 +477,7 @@ void handle_abort(data_t* data) {
     printf("\n");
     message msg2 = {.type = MSG_ABORT};
     send_message(data, &msg2);
-    fsync(data->fd); // sync the data
-}
+ }
 
 void handle_reset(data_t* data) {
     data->cid = 0;
@@ -524,4 +498,24 @@ void open_files(data_t* data) {
    }
 }
 
+unsigned char* allocate_image_buf(int width, int height) {
+    unsigned char *img = malloc(width * height * 3);  // 3 bytes per pixel for RGB
+    if (img == NULL) {
+        fprintf(stderr, "Failed to allocate memory for image\n");
+        exit(1);
+    }
+    return img;
+}
+
+void default_redraw(unsigned char* img, int width, int height) {
+    for (int y = 0; y < height; ++y) { // fill the image with some color
+        for (int x = 0; x < width; ++x) {
+            int idx = (y * width + x) * 3;
+            img[idx] = 100; // red component
+            img[idx + 1] = 0; // green component
+            img[idx + 2] = 10; // blue component
+        }
+    }
+   xwin_redraw(W, H, img);
+}
 /* end of threads.c */
