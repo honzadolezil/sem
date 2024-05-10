@@ -74,6 +74,9 @@ void handle_abort(data_t* data);
 void handle_reset(data_t* data);
 
 
+void open_files(data_t* data);
+
+
 void* input_thread(void*);
 void* output_thread(void*);
 void* alarm_thread(void*);
@@ -143,12 +146,11 @@ void* input_thread(void* d)
                handle_refresh_screen(data);
             }
             break;
-
          case 'a':
             {
                handle_abort(data);
             }
-         break;
+            break;
          case 'r':
             {
                handle_reset(data);
@@ -157,7 +159,6 @@ void* input_thread(void* d)
       }
       
    }
-
    data->quit = true;
    r = 1;
    pthread_mutex_lock(data->mtx);
@@ -172,19 +173,10 @@ void* output_thread(void* d)
    data_t *data = (data_t*)d;
    static int r = 0;
    bool q = false;
-   data->fd = io_open_write(MY_DEVICE_OUT);
-   if (data->fd == EOF) {
-      fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to open the file %s\n", MY_DEVICE_OUT);
-      exit(1);
-   }
-   data->rd = io_open_read(MY_DEVICE_IN);
-   if (data->rd == EOF){
-        fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to open the file %s\n", MY_DEVICE_IN);
-        exit(1); // not coding style but whatever
-    }
+   open_files(data);
+
    message msg  = {.type = MSG_STARTUP, .data.startup = { .message = "Henlo"}};
    send_message(data, &msg);
-
 
    //open SDL window
    xwin_init(W, H);
@@ -517,6 +509,19 @@ void handle_reset(data_t* data) {
     data->cid = 0;
     printf("\033[1;34mINFO\033[0m: Reset cid\r\n");
     data->compute_done = false;
+}
+
+void open_files(data_t* data) {
+   data->fd = io_open_write(MY_DEVICE_OUT);
+   if (data->fd == EOF) {
+      fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to open the file %s\n", MY_DEVICE_OUT);
+      exit(1);
+   }
+   data->rd = io_open_read(MY_DEVICE_IN);
+   if (data->rd == EOF){
+      fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to open the file %s\n", MY_DEVICE_IN);
+      exit(1); 
+   }
 }
 
 /* end of threads.c */
