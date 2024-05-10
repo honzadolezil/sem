@@ -176,10 +176,6 @@ void* calculation_thread(void* d)
         }
         // printf("INFO: Calculation thread is running\r\n");
         q = data->quit;
-        if (data->quit) {
-            break;
-        }
-
         if (!data->abort && !q) {
             // compute julia set for each chunk (64x48 pixels on 640 x 480 screen)
             // send the result back to the input thread
@@ -197,17 +193,10 @@ void* calculation_thread(void* d)
                     break;
                 }
 
-              
-                
-
                 int x_im = (data->cid % CHUNK_PER_ROW) * CHUNK_SIZE_W;     // first chunk (real)
                 int y_im = (data->cid / CHUNK_PER_ROW) * CHUNK_SIZE_H;    // forst chunk (imaginary)
-
-                // printf("INFO: Chunk %d: x_im = %d, y_im = %d\r\n", data->cid, x_im, y_im);
                 data->re = start_re + x_im * data->d_re;
                 data->im = start_im + y_im * data->d_im;
-                // printf("INFO: Chunk %d: re = %lf, im = %lf\r\n", data->cid, data->re, data->im);
-
                 compute_julia_set(data);
                 if (data->is_abort) {
                     break;
@@ -221,7 +210,6 @@ void* calculation_thread(void* d)
         q = data->quit;
     }
     pthread_mutex_unlock(data->mtx);
-
     printf("INFO: Calculation thread is exiting\r\n");
     return &r;
 }
