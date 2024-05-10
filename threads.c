@@ -50,6 +50,8 @@ typedef struct { // shared date structure
 
    bool refresh_screen;
 
+   bool module_quit;
+
    bool compute_done;
 
    uint8_t n;
@@ -71,7 +73,7 @@ message *buffer_parse(data_t *data, int message_type);
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false };
+   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false, .module_quit = false };
    enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
    const char *threads_names[] = { "Input", "Output", "Alarm", };
 
@@ -298,7 +300,7 @@ void* output_thread(void* d)
    while (!q) { // main loop for data output
       pthread_cond_wait(data->cond, data->mtx); // wait for next event
       uint8_t c = '\0'; 
-      io_getc_timeout(data->rd, 0,&c); 
+      io_getc_timeout(data->rd, 0,&c);      
       if(c == MSG_VERSION){
          //printf("Version message recieved:");
          message *msg = buffer_parse(data, MSG_VERSION);
