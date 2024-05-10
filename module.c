@@ -130,7 +130,7 @@ void* input_thread(void* d)
     data->fd = open_file(MY_DEVICE_OUT, true);
     data->rd = open_file(MY_DEVICE_IN, false);
 
-    printf("INFO: Input thread is running\r\n");
+    printf("\033[1;34mINFO\033[0m: : Input thread is running\r\n");
 
     // wait for recieving startup message
     while (!data->quit) {
@@ -138,7 +138,7 @@ void* input_thread(void* d)
         io_getc_timeout(data->fd, 0, &c);
         if (c == MSG_STARTUP) {
             message* msg = buffer_parse(data, MSG_STARTUP);
-            printf("INFO: Startup: %s\r\n", msg->data.startup.message);
+            printf("\033[1;34mINFO\033[0m: : Startup: %s\r\n", msg->data.startup.message);
             free(msg);
             c = '\0';
             break;
@@ -148,7 +148,7 @@ void* input_thread(void* d)
         }
     }
     if (!data->quit)
-        printf("INFO: Startup message recieved\r\n");
+        printf("\033[1;34mINFO\033[0m: : Startup message recieved\r\n");
 
     while (!data->quit) {
         uint8_t c = '\0';
@@ -183,7 +183,7 @@ void* calculation_thread(void* d)
             double start_im = data->im;
             while (!q) {
                 if (data->cid == NUM_CHUNKS) {
-                    printf("INFO: Calculation thread is done\r\n");
+                    printf("\033[1;34mINFO\033[0m: : Calculation thread is done\r\n");
                     pthread_mutex_unlock(data->mtx);
                     message msg = {.type = MSG_DONE};
                     send_message(data, &msg);
@@ -206,7 +206,7 @@ void* calculation_thread(void* d)
         q = data->quit;
     }
     pthread_mutex_unlock(data->mtx);
-    printf("INFO: Calculation thread is exiting\r\n");
+    printf("\033[1;34mINFO\033[0m: : Calculation thread is exiting\r\n");
     return &r;
 }
 
@@ -230,14 +230,13 @@ void* input_from_stdin_thread(void* d)
                 fsync(data->rd);
                 data->abort = true;
                 data->is_abort = true;
+                printf("\033[1;33mWARNING\033[0m: : Aborted from module\r\n");
             }
         }
     }
-    printf("INFO: Stdin thread is exiting\r\n");
+    printf("\033[1;34mINFO\033[0m: : Stdin thread is exiting\r\n");
     return &r;
 }
-
-
 
 
 /*___________________FUNCTIONS___________________*/
@@ -270,13 +269,13 @@ message* buffer_parse(data_t* data, int message_type)
     }
     message* msg = malloc(sizeof(message));
     if (msg == NULL) {
-        fprintf(stderr, "ERROR: Unable to allocate memory\r\n");
+        fprintf(stderr, "\033[1;31mERROR\033[0m:: Unable to allocate memory\r\n");
         exit(1);
     }
     msg->type = message_type;
     get_message_size(message_type, &len);
     if (!parse_message_buf(msg_buf, len, msg)) {
-        fprintf(stderr, "ERROR: Unable to parse the message\r\n");
+        fprintf(stderr, "\033[1;31mERROR\033[0m:: Unable to parse the message\r\n");
         message msg2 = {.type = MSG_ERROR};
         send_message(data, &msg2);
         fsync(data->rd);
@@ -323,16 +322,16 @@ void compute_julia_set(data_t* data)
                 pthread_mutex_lock(data->mtx);
                 return;
             }
-            // printf("INFO: Chunk %d: x = %d, y = %d, iter = %d\r\n", data->cid, x, y, iter);
+            // printf("\033[1;34mINFO\033[0m: : Chunk %d: x = %d, y = %d, iter = %d\r\n", data->cid, x, y, iter);
             pthread_mutex_unlock(data->mtx);
             message msg = {.type = MSG_COMPUTE_DATA, .data.compute_data = {data->cid, x, y, iter}}; // for each pixel = x, y in given chunk
             send_message(data, &msg);
             fsync(data->rd);
-            // printf("INFO: sent compute data\r\n");
+            // printf("\033[1;34mINFO\033[0m: : sent compute data\r\n");
             pthread_mutex_lock(data->mtx);
         }
     }
-    printf("INFO: Chunk %d is done\n\r", data->cid);
+    //printf("\033[1;34m-->\033[0m: : Chunk %d is done\n\r", data->cid);
 }
 
 void create_threads(pthread_t threads[], void* (*thr_functions[])(void*), data_t* data, const char* threads_names[])
@@ -366,17 +365,17 @@ void process_message(data_t* data, uint8_t c)
     if (c == 'q') {
         data->quit = true;
     } else if (c == MSG_GET_VERSION) {
-        printf("INFO: sending version\r\n");
+        printf("\033[1;34mINFO\033[0m: : sending version\r\n");
         message msg = {.type = MSG_VERSION, .data.version = {'1', '2', '2'}};
         if (!send_message(data, &msg))
             exit(1);
         fsync(data->rd);
     } else if (c == MSG_STARTUP) {
         message* msg = buffer_parse(data, MSG_STARTUP);
-        printf("INFO: Startup: %s\r\n", msg->data.startup.message);
+        printf("\033[1;34mINFO\033[0m: : Startup: %s\r\n", msg->data.startup.message);
         free(msg);
     } else if (c == MSG_SET_COMPUTE) {
-        printf("INFO: received set compute\r\n");
+        printf("\033[1;34mINFO\033[0m: : received set compute\r\n");
         message* msg = buffer_parse(data, MSG_SET_COMPUTE);
         data->c_re = msg->data.set_compute.c_re;
         data->c_im = msg->data.set_compute.c_im;
@@ -386,7 +385,7 @@ void process_message(data_t* data, uint8_t c)
         printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\r\n", data->c_re, data->c_im, data->d_re, data->d_im, data->n);
         free(msg);
     } else if (c == MSG_COMPUTE) {
-        printf("INFO: received compute\r\n");
+        printf("\033[1;34mINFO\033[0m: : received compute\r\n");
         message* msg = buffer_parse(data, MSG_COMPUTE);
         data->cid = msg->data.compute.cid;
         data->re = msg->data.compute.re;
@@ -410,7 +409,7 @@ int open_file(const char* filename, bool is_read)
 {
     int fd = is_read ? io_open_read(filename) : io_open_write(filename);
     if (fd == EOF) {
-        fprintf(stderr, "Error: Unable to open the file %s\r\n", filename);
+        fprintf(stderr, "\033[1;31mERROR\033[0m:: Unable to open the file %s\r\n", filename);
         exit(1);
     }
     return fd;
