@@ -66,6 +66,14 @@ void join_threads(pthread_t threads[], const char *threads_names[]);
 void init_mutex_cond(pthread_mutex_t *mtx, pthread_cond_t *cond, data_t *data);
 void call_termios(int reset);
 
+void handle_get_version(data_t* data);
+void handle_set_compute(data_t* data);
+void handle_compute_start(data_t* data);
+void handle_refresh_screen(data_t* data);
+void handle_abort(data_t* data);
+void handle_reset(data_t* data);
+
+
 void* input_thread(void*);
 void* output_thread(void*);
 void* alarm_thread(void*);
@@ -106,95 +114,46 @@ void* input_thread(void* d)
 {
    data_t *data = (data_t*)d;
    static int r = 0;
-   int c;
    bool qq = false;
-   
-   
    while((!qq)){ // until pipe isnt open - dont do anything
       pthread_mutex_lock(data->mtx); 
       qq = data->is_serial_open;
       pthread_mutex_unlock(data->mtx);
    }
-   message msg2;
+   uint8_t c;
    while ((c = getchar()) != 'q') {
       switch (c) {
          case 'g':
             {
-               msg2 = (message){.type = MSG_GET_VERSION,};
-               send_message(data, &msg2);
-               fsync(data->fd); // sync the data
-               printf("\033[1;34mINFO\033[0m: Get version set\r\n");
-
+               handle_get_version(data);
             }
             break;
          case 's':
-         {
-            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60}};
-            data->n = 60;
-            send_message(data, &msg2);
-            fsync(data->fd); // sync the data
-            data->is_compute_set = true;
-            printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
-         
-         }
-         break;
+            {
+               handle_set_compute(data);
+            }
+            break;
          case '1':
-         {  
-            if(!data->is_compute_set){
-               printf("\033[1;33mWARNING\033[0m: Compute message is not set\r\n");
-               printf("\033[1;32mHINT:\033[0m: If you want to set compute message, press s\r\n");
-               break;
+            {  
+               handle_compute_start(data);
             }
-            if(data->compute_used){
-               printf("\033[1;33mWARNING\033[0m: Compute thread is already running\r\n");
-               printf("\033[1;32mHINT:\033[0m: If you want to abort computation, press a\r\n");
-               break;
-            }
-            if(data->compute_done){
-               printf("\033[1;33mWARNING\033[0m: Compute thread is already done\r\n");
-               printf("\033[1;32mHINT:\033[0m: If you want to reset cid, press r\r\n");
-               break;
-            }
-            data->abort = false;
-
-            double re = -1.6; //start of the x-coords (real]
-            double im =1.1; //start of the y-coords (imaginary)
-            data->prev_cid = data->cid;
-            msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
-            send_message(data, &msg2);
-            fsync(data->fd); // sync the data
-            data->compute_used = true;
-          
-         }
-         break;
-
+            break;
          case 'l':
-         {
-            if(!data->compute_used)
-               data->refresh_screen = true;
-            else{
-               printf("\033[1;33mWARNING\033[0m: Computing is underway - cant refresh window\r\n");
-               printf("\033[1;32mHINT:\033[0m: If you want to abort computing, press a\r\n");
+            {
+               handle_refresh_screen(data);
             }
-         }
-         break;
+            break;
 
          case 'a':
-         {
-            data->abort = true;
-            data->compute_used = false;
-            printf("\n");
-            msg2 = (message){.type = MSG_ABORT,};
-            send_message(data, &msg2);
-            fsync(data->fd); // sync the data
-         }
+            {
+               handle_abort(data);
+            }
          break;
          case 'r':
-         {
-            data->cid = 0;
-            printf("\033[1;34mINFO\033[0m: Reset cid\r\n");
-            data->compute_done = false;
-         }
+            {
+               handle_reset(data);
+            }
+            break;
       }
       
    }
@@ -495,5 +454,69 @@ void call_termios(int reset)
 
 
 
+void handle_get_version(data_t* data) {
+    message msg = {.type = MSG_GET_VERSION};
+    send_message(data, &msg);
+    fsync(data->fd); // sync the data
+    printf("\033[1;34mINFO\033[0m: Get version set\r\n");
+}
+void handle_set_compute(data_t* data) {
+    message msg = {.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60}};
+    data->n = 60;
+    send_message(data, &msg);
+    fsync(data->fd); // sync the data
+    data->is_compute_set = true;
+    printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
+}
+void handle_compute_start(data_t* data) {
+   if(!data->is_compute_set){
+      printf("\033[1;33mWARNING\033[0m: Compute message is not set\r\n");
+      printf("\033[1;32mHINT:\033[0m: If you want to set compute message, press s\r\n");
+      return;
+   }
+   if(data->compute_used){
+      printf("\033[1;33mWARNING\033[0m: Compute thread is already running\r\n");
+      printf("\033[1;32mHINT:\033[0m: If you want to abort computation, press a\r\n");
+      return;
+   }
+   if(data->compute_done){
+      printf("\033[1;33mWARNING\033[0m: Compute thread is already done\r\n");
+      printf("\033[1;32mHINT:\033[0m: If you want to reset cid, press r\r\n");
+      return;
+   }
+   data->abort = false;
+
+   double re = -1.6; //start of the x-coords (real)
+   double im =1.1; //start of the y-coords (imaginary)
+   data->prev_cid = data->cid;
+   message msg2 = {.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
+   send_message(data, &msg2);
+   fsync(data->fd); // sync the data
+   data->compute_used = true;
+}
+
+void handle_refresh_screen(data_t* data) {
+    if(!data->compute_used)
+        data->refresh_screen = true;
+    else{
+        printf("\033[1;33mWARNING\033[0m: Computing is underway - cant refresh window\r\n");
+        printf("\033[1;32mHINT:\033[0m: If you want to abort computing, press a\r\n");
+    }
+}
+
+void handle_abort(data_t* data) {
+    data->abort = true;
+    data->compute_used = false;
+    printf("\n");
+    message msg2 = {.type = MSG_ABORT};
+    send_message(data, &msg2);
+    fsync(data->fd); // sync the data
+}
+
+void handle_reset(data_t* data) {
+    data->cid = 0;
+    printf("\033[1;34mINFO\033[0m: Reset cid\r\n");
+    data->compute_done = false;
+}
 
 /* end of threads.c */
