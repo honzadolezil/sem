@@ -48,6 +48,8 @@ typedef struct { // shared date structure
    bool compute_used;
    bool is_compute_set;
 
+   bool refresh_screen;
+
    uint8_t n;
 
 
@@ -67,7 +69,7 @@ message *buffer_parse(data_t *data, int message_type);
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false};
+   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false };
    enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
    const char *threads_names[] = { "Input", "Output", "Alarm", };
 
@@ -185,6 +187,13 @@ void* input_thread(void* d)
           
          }
          break;
+
+         case 'l':
+         {
+            data->refresh_screen = true;
+         }
+
+
          case 'a':
          {
             pthread_mutex_unlock(data->mtx);
@@ -244,11 +253,15 @@ void* output_thread(void* d)
 
    //open SDL window
    xwin_init(W, H);
+  
    unsigned char *img = malloc(W * H * 3);  // 3 bytes per pixel for RGB
    if (img == NULL) {
       fprintf(stderr, "Failed to allocate memory for image\n");
       exit(1);
    }
+
+ 
+
    for (int y = 0; y < H; ++y) { // fill the image with some color
             for (int x = 0; x < W; ++x) {
                int idx = (y * W + x) * 3;
@@ -258,6 +271,8 @@ void* output_thread(void* d)
             }
    }
    xwin_redraw(W, H, img);
+   
+
    if (io_putc(data->fd, 'i') != 1) { // sends init byte
       fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the init byte\n");
       exit(1);
@@ -278,6 +293,22 @@ void* output_thread(void* d)
       }
       if(c == MSG_ERROR){
          printf("\033[1;31mERROR\033[0m: Module sent error\r\n");
+      }
+
+      if(data->refresh_screen){
+
+         data->refresh_screen = false;
+            for (int y = 0; y < H; ++y) { // fill the image with some color
+            for (int x = 0; x < W; ++x) {
+               int idx = (y * W + x) * 3;
+               img[idx] = 100; // red component
+               img[idx + 1] = 0; // green component
+               img[idx + 2] = 10; // blue component
+            }
+         }
+         xwin_redraw(W, H, img);
+         
+         
       }
 
       if(c == MSG_DONE){
