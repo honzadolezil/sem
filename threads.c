@@ -66,6 +66,9 @@ void join_threads(pthread_t threads[], const char *threads_names[]);
 void init_mutex_cond(pthread_mutex_t *mtx, pthread_cond_t *cond, data_t *data);
 void call_termios(int reset);
 
+
+void process_input(char c, data_t* data);
+
 void handle_get_version(data_t* data);
 void handle_set_compute(data_t* data);
 void handle_compute_start(data_t* data);
@@ -128,40 +131,9 @@ void* input_thread(void* d)
    }
    uint8_t c;
    while ((c = getchar()) != 'q') {
-      switch (c) {
-         case 'g':
-            {
-               handle_get_version(data);
-            }
-            break;
-         case 's':
-            {
-               handle_set_compute(data);
-            }
-            break;
-         case '1':
-            {  
-               handle_compute_start(data);
-            }
-            break;
-         case 'l':
-            {
-               handle_refresh_screen(data);
-            }
-            break;
-         case 'a':
-            {
-               handle_abort(data);
-            }
-            break;
-         case 'r':
-            {
-               handle_reset(data);
-            }
-            break;
-      }
-      
+      process_input(c, data);
    }
+
    data->quit = true;
    r = 1;
    pthread_mutex_lock(data->mtx);
@@ -474,7 +446,6 @@ void handle_refresh_screen(data_t* data) {
 void handle_abort(data_t* data) {
     data->abort = true;
     data->compute_used = false;
-    printf("\n");
     message msg2 = {.type = MSG_ABORT};
     send_message(data, &msg2);
  }
@@ -517,5 +488,28 @@ void default_redraw(unsigned char* img, int width, int height) {
         }
     }
    xwin_redraw(W, H, img);
+}
+
+void process_input(char c, data_t* data) {
+    switch (c) {
+        case 'g':
+            handle_get_version(data);
+            break;
+        case 's':
+            handle_set_compute(data);
+            break;
+        case '1':
+            handle_compute_start(data);
+            break;
+        case 'l':
+            handle_refresh_screen(data);
+            break;
+        case 'a':
+            handle_abort(data);
+            break;
+        case 'r':
+            handle_reset(data);
+            break;
+    }
 }
 /* end of threads.c */
