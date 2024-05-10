@@ -147,12 +147,11 @@ void* input_thread(void* d)
          case 's':
          {
             pthread_mutex_unlock(data->mtx);
-            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)11/2400, .n = 60}};
+            msg2 = (message){.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60}};
             data->n = 60;
             send_message(data, &msg2);
             fsync(data->fd); // sync the data
             data->is_compute_set = true;
-            fsync(data->is_compute_set);
             pthread_mutex_lock(data->mtx);
             printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
          
@@ -176,7 +175,7 @@ void* input_thread(void* d)
             data->abort = false;
 
             double re = -1.6; //start of the x-coords (real]
-            double im =-1.1; //start of the y-coords (imaginary)
+            double im =1.1; //start of the y-coords (imaginary)
             data->prev_cid = data->cid;
             msg2 = (message){.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
             send_message(data, &msg2);
@@ -190,7 +189,7 @@ void* input_thread(void* d)
          {
             pthread_mutex_unlock(data->mtx);
             data->abort = true;
-            fsync(data->abort); // sync the data
+            data->compute_used = false;
             printf("\n");
             //printf("\033[1;33mWARNING\033[0m: Abort computation message sent\r\n");
             msg2 = (message){.type = MSG_ABORT,};
@@ -204,7 +203,6 @@ void* input_thread(void* d)
             pthread_mutex_unlock(data->mtx);
             data->cid = 0;
             printf("\033[1;34mINFO\033[0m: Reset cid\r\n");
-            fsync(data->cid);
             pthread_mutex_lock(data->mtx);
          }
       }

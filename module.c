@@ -269,10 +269,10 @@ void* calculation_thread(void*d){
                 int x_im = (data->cid % chunks_per_row) * chunk_width; //first chunk (real)
                 int y_im = (data->cid / chunks_per_row) * chunk_height; // forst chunk (imaginary)
 
-                printf("INFO: Chunk %d: x_im = %d, y_im = %d\r\n", data->cid, x_im, y_im);
+                //printf("INFO: Chunk %d: x_im = %d, y_im = %d\r\n", data->cid, x_im, y_im);
                 data->re =start_re + x_im * data->d_re;
                 data->im = start_im + y_im * data->d_im;
-                printf("INFO: Chunk %d: re = %lf, im = %lf\r\n", data->cid, data->re, data->im);                
+                //printf("INFO: Chunk %d: re = %lf, im = %lf\r\n", data->cid, data->re, data->im);                
 
                 compute_julia_set(data);
                 if(data->is_abort){
