@@ -19,8 +19,7 @@
 
 void call_termios(int reset);
 
-#define SIZE_C_W 64
-#define SIZE_C_H 48
+// constants
 #define NUM_CHUNKS 100
 #define CHUNK_PER_ROW 10
 
@@ -70,6 +69,8 @@ int open_file(const char* filename, bool is_read);
 
 // julia set computation
 void compute_julia_set(data_t* data);
+void calculate_chunk_coordinates(data_t* data, double start_re, double start_im);
+
 
 // thread management functions
 void create_threads(pthread_t threads[], void* (*thr_functions[])(void*), data_t* data, const char* threads_names[]);
@@ -169,21 +170,19 @@ void* calculation_thread(void* d)
     bool q = false;
     pthread_mutex_lock(data->mtx);
     while (!q) {
-        // printf("INFO: Calculation thread is waiting\r\n");
         while (!q && !data->is_cond_signaled) {
             pthread_cond_wait(data->cond, data->mtx);
             q = data->quit;
         }
-        // printf("INFO: Calculation thread is running\r\n");
-        q = data->quit;
         if (!data->abort && !q) {
             // compute julia set for each chunk (64x48 pixels on 640 x 480 screen)
             // send the result back to the input thread
-            double start_re = data->re;
+
+            //init the starting points
+            double start_re = data->re; 
             double start_im = data->im;
             while (!q) {
-
-                if (data->cid == 100) {
+                if (data->cid == NUM_CHUNKS) {
                     printf("INFO: Calculation thread is done\r\n");
                     pthread_mutex_unlock(data->mtx);
                     message msg = {.type = MSG_DONE};
@@ -193,10 +192,7 @@ void* calculation_thread(void* d)
                     break;
                 }
 
-                int x_im = (data->cid % CHUNK_PER_ROW) * CHUNK_SIZE_W;     // first chunk (real)
-                int y_im = (data->cid / CHUNK_PER_ROW) * CHUNK_SIZE_H;    // forst chunk (imaginary)
-                data->re = start_re + x_im * data->d_re;
-                data->im = start_im + y_im * data->d_im;
+                calculate_chunk_coordinates(data, start_re, start_im);
                 compute_julia_set(data);
                 if (data->is_abort) {
                     break;
@@ -216,8 +212,7 @@ void* calculation_thread(void* d)
 
 void* input_from_stdin_thread(void* d)
 {
-
-    struct pollfd fds[1];
+    struct pollfd fds[1]; // this is copied from internet - i found no other way to read from stdin without blocking
     fds[0].fd = STDIN_FILENO;
     fds[0].events = POLLIN;
 
@@ -242,6 +237,10 @@ void* input_from_stdin_thread(void* d)
     return &r;
 }
 
+
+
+
+/*___________________FUNCTIONS___________________*/
 bool send_message(data_t* data, message* msg)
 {
     uint8_t msg_buf[sizeof(message)];
@@ -416,3 +415,10 @@ int open_file(const char* filename, bool is_read)
     }
     return fd;
 }
+void calculate_chunk_coordinates(data_t* data, double start_re, double start_im) {
+    int x_im = (data->cid % CHUNK_PER_ROW) * CHUNK_SIZE_W;     // first chunk (real)
+    int y_im = (data->cid / CHUNK_PER_ROW) * CHUNK_SIZE_H;    // first chunk (imaginary)
+    data->re = start_re + x_im * data->d_re;
+    data->im = start_im + y_im * data->d_im;
+}
+
