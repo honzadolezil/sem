@@ -50,6 +50,8 @@ typedef struct { // shared date structure
 
    bool refresh_screen;
 
+   bool compute_done;
+
    uint8_t n;
 
 
@@ -69,7 +71,7 @@ message *buffer_parse(data_t *data, int message_type);
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false };
+   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond2_signaled = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false };
    enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
    const char *threads_names[] = { "Input", "Output", "Alarm", };
 
@@ -174,6 +176,12 @@ void* input_thread(void* d)
                pthread_mutex_lock(data->mtx);
                break;
             }
+            if(data->compute_done){
+               printf("\033[1;33mWARNING\033[0m: Compute thread is already done\r\n");
+               printf("\033[1;32mHINT:\033[0m: If you want to reset cid, press r\r\n");
+               pthread_mutex_lock(data->mtx);
+               break;
+            }
             data->abort = false;
 
             double re = -1.6; //start of the x-coords (real]
@@ -190,8 +198,14 @@ void* input_thread(void* d)
 
          case 'l':
          {
-            data->refresh_screen = true;
+            if(!data->compute_used)
+               data->refresh_screen = true;
+            else{
+               printf("\033[1;33mWARNING\033[0m: Computing is underway - cant refresh window\r\n");
+               printf("\033[1;32mHINT:\033[0m: If you want to abort computing, press a\r\n");
+            }
          }
+         break;
 
 
          case 'a':
@@ -212,6 +226,7 @@ void* input_thread(void* d)
             pthread_mutex_unlock(data->mtx);
             data->cid = 0;
             printf("\033[1;34mINFO\033[0m: Reset cid\r\n");
+            data->compute_done = false;
             pthread_mutex_lock(data->mtx);
          }
       }
@@ -296,7 +311,7 @@ void* output_thread(void* d)
       }
 
       if(data->refresh_screen){
-
+         printf("\033[1;34mINFO\033[0m: Refreshing screen\r\n");
          data->refresh_screen = false;
             for (int y = 0; y < H; ++y) { // fill the image with some color
             for (int x = 0; x < W; ++x) {
@@ -307,8 +322,6 @@ void* output_thread(void* d)
             }
          }
          xwin_redraw(W, H, img);
-         
-         
       }
 
       if(c == MSG_DONE){
@@ -316,6 +329,7 @@ void* output_thread(void* d)
          message *msg = buffer_parse(data, MSG_DONE);
          printf("\033[1;34mINFO\033[0m: Done message recieved\r\n");
          data->compute_used = false;
+         data->compute_done = true;
          free(msg);
          c = '\0';
       }
