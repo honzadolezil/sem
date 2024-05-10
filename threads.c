@@ -334,6 +334,16 @@ void* output_thread(void* d)
          c = '\0';
       }
 
+      if(c == MSG_ABORT){
+         printf("Abort message recieved:\r\n");
+         message *msg = buffer_parse(data, MSG_ABORT);
+         printf("\033[1;33mWARNING\033[0m: Abort message recieved\r\n");
+         data->compute_used = false;
+         data->abort = true;
+         free(msg);
+         c = '\0';
+      }
+
 
       if(c == MSG_COMPUTE_DATA){
          //printf("Compute data recieved:");

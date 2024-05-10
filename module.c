@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <poll.h>
 
 #include <string.h>
 #include <termios.h>
@@ -56,13 +57,17 @@ typedef struct { // shared date structure;
 
 } data_t;
 
+
+
+
 // constants definitions
-enum { INPUT, CALCULATION, NUM_THREADS };
+enum { INPUT, CALCULATION, INPUT_FROM_STDIN ,NUM_THREADS };
 #define CHUNK_SIZE_W 64
 #define CHUNK_SIZE_H 48
 
 void* input_thread(void*);
 void* calculation_thread(void*);
+void* input_from_stdin_thread(void*);
 
 // message comunication
 message *buffer_parse(data_t *data, int message_type);
@@ -85,8 +90,8 @@ int main(int argc, char *argv[])
     data_t data = {.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .is_cond_signaled = false, .cid = 0, .re = 0, .im = 0, .n_re = 0, .n_im = 0, .is_message_recieved = false, .mtx = NULL, .cond = NULL, .c_re = 0, .c_im = 0, .d_re = 0, .d_im = 0, .n = 0 };
 
     // thread names and functions
-    const char *threads_names[] = { "Input", "Calculation" };
-    void* (*thr_functions[])(void*) = { input_thread, calculation_thread };
+    const char *threads_names[] = { "Input", "Calculation", "Stdin"};
+    void* (*thr_functions[])(void*) = { input_thread, calculation_thread, input_from_stdin_thread};
     pthread_t threads[NUM_THREADS];
 
     // mutex and condition variable
@@ -144,6 +149,7 @@ void* input_thread(void* d)
     }
     if(!data->quit)
         printf("INFO: Startup message recieved\r\n");
+
     while (!data->quit) {
         uint8_t c = '\0';
         io_getc_timeout(data->fd, 0, &c);
@@ -220,6 +226,43 @@ void* calculation_thread(void*d){
     printf("INFO: Calculation thread is exiting\r\n");
     return &r;
 }
+
+
+void* input_from_stdin_thread(void*d){
+
+    struct pollfd fds[1];
+    fds[0].fd = STDIN_FILENO;
+    fds[0].events = POLLIN;
+
+    data_t *data = (data_t*)d;
+    static int r = 1;
+    while(!data->quit){
+    int ret = poll(fds, 1, 0);
+    
+    if(ret > 0){
+        char c;
+        read(STDIN_FILENO, &c, 1);
+        if(c == 'q'){
+            data->quit = true;
+            break;
+        }
+        else if (c == 'a') {
+            message msg = {.type = MSG_ABORT};
+            send_message(data, &msg);
+            fsync(data->rd);
+            data->abort = true;
+            data->is_abort = true;
+        }
+    }
+
+    
+    
+    }
+    printf("INFO: Stdin thread is exiting\r\n");
+    return &r;
+}
+
+
 
 bool send_message(data_t *data, message *msg){
     uint8_t msg_buf[sizeof(message)];
