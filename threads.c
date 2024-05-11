@@ -635,7 +635,7 @@ void save_image_as_png(unsigned char* img, unsigned width, unsigned height, cons
 }
 bool get_values_from_argv(int argc, char *argv[], data_t* data) {
     double values[6];
-    if (argc == 8) {
+    if (argc == 9) {
         char *end;
         for (int i = 0; i < 6; i++) {
             values[i] = strtod(argv[i + 1], &end);
@@ -643,10 +643,16 @@ bool get_values_from_argv(int argc, char *argv[], data_t* data) {
                 return false;
             }
         }
+
+        uint8_t n = (uint8_t)strtol(argv[7], &end, 10);
+        if (*end != '\0') {
+            return false;
+        }
+        data->n = n;
     
     
-        int integer_param = strtol(argv[7], &end, 10);
-        if (*end != '\0' || integer_param < 1 || integer_param > 2) {
+        int integer_param = strtol(argv[8], &end, 10);
+        if (*end != '\0' || integer_param < 1 || integer_param > 3) {
             return false;
         }
 
@@ -665,6 +671,15 @@ bool get_values_from_argv(int argc, char *argv[], data_t* data) {
             data->n_im = 10;
 
         }
+        else if(integer_param == 3){
+            data->num_chunks = 13*13;
+            data->w = 832;
+            data->h = 624;
+            data->n_re = 13;
+            data->n_im = 13;
+
+        }
+        
         
 
     }
