@@ -28,6 +28,11 @@
 #define H 480
 #define N_RE 10
 #define N_IM 10
+
+#define RED(t) (uint8_t)(9 * (1 - t) * t * t * t * 255)
+#define GREEN(t) (uint8_t)(15 * (1 - t) * (1 - t) * t * t * 255)
+#define BLUE(t) (uint8_t)(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255)
+
 #include "messages.h"
 #include "xwin_sdl.h"
 
@@ -164,10 +169,8 @@ void* output_thread(void* d)
       fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the init byte\n");
       exit(1);
    }
-   pthread_mutex_lock(data->mtx);
    data->is_serial_open = true;
    while (!q) { // main loop for data output
-      pthread_cond_wait(data->cond, data->mtx); // wait for next event
       uint8_t c = '\0'; 
       io_getc_timeout(data->rd, 0,&c);      
       if(c == MSG_VERSION){
@@ -226,26 +229,10 @@ void* output_thread(void* d)
 
          double t = (double)msg->data.compute_data.iter / data->n; // t is in [0, 1]
          
-         if(t == 1){
-            uint8_t red = 0; // red component
-            uint8_t green = 0; // green component
-            uint8_t blue = 0; // blue component
-
-            img[idx] = red; // red component
-            img[idx + 1] = green; // green component
-            img[idx + 2] = blue; // blue component
-
-         }
-         else{
-
-            uint8_t red = (uint8_t)(9 * (1 - t) * t * t * t * 255); // red component
-            uint8_t green = (uint8_t)(15 * (1 - t) * (1 - t) * t * t * 255); // green component
-            uint8_t blue = (uint8_t)(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255); // blue component
-
-            img[idx] = red; // red component
-            img[idx + 1] = green; // green component
-            img[idx + 2] = blue; // blue component
-         }
+         img[idx] = RED(t);; // red component
+         img[idx + 1] = GREEN(t); // green component
+         img[idx + 2] = BLUE(t); // blue component
+      
 
          
          if(data->cid != data->prev_cid){ // if the chunk is done (cid changed
@@ -264,7 +251,7 @@ void* output_thread(void* d)
    q = data->quit;
    fflush(stdout);
    }
-   pthread_mutex_unlock(data->mtx);
+   
 
    if (io_putc(data->fd, 'q') != 1) { // sends exit byte
       fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the end byte\r\n");
@@ -292,17 +279,14 @@ void* alarm_thread(void* d)
    }
    printf("\033[1;34mINFO\033[0m: pipe unlocked\r\n");
    static int r = 0;
-   pthread_mutex_lock(data->mtx);
    bool q = data->quit;
-   //useconds_t period = data->alarm_period * 1000; // alarm_period is in ms
-   pthread_mutex_unlock(data->mtx);
+   
 
    while (!q) {
       //usleep(period);
-      pthread_mutex_lock(data->mtx);
+     ;
       q = data->quit;
-      pthread_cond_broadcast(data->cond); // broadcast condition for output thread - to prevent buffer overflow
-      pthread_mutex_unlock(data->mtx);
+      
       xwin_poll_events();
 
       
@@ -405,7 +389,7 @@ void handle_set_compute(data_t* data) {
     message msg = {.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60}};
     data->n = 60;
     send_message(data, &msg);
-     data->is_compute_set = true;
+    data->is_compute_set = true;
     printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
 }
 void handle_compute_start(data_t* data) {
