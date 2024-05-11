@@ -89,6 +89,8 @@ void out_handle_done(data_t* data, uint8_t* c);
 void out_handle_abort(data_t* data, uint8_t* c);
 void out_handle_compute_data(data_t* data, uint8_t* c, unsigned char* img);
 
+void exit_output_thread(data_t* data, unsigned char* img);
+
 
 void open_files(data_t* data);
 
@@ -203,16 +205,7 @@ void* output_thread(void* d)
       fflush(stdout);
    }
    
-
-   if (io_putc(data->fd, 'q') != 1) { // sends exit byte
-      fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the end byte\r\n");
-      exit(1);
-   }
-   io_close(data->fd);
-   io_close(data->rd);
-   fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit output thread %lu\r\n", (unsigned long)pthread_self());
-   xwin_close();
-   free(img);
+   exit_output_thread(data, img);
    return &r;
 }
 
@@ -504,5 +497,18 @@ void out_handle_compute_data(data_t* data, uint8_t* c, unsigned char* img) {
     data->prev_cid = data->cid;
     free(msg);
     *c = '\0';
+}
+
+
+void exit_output_thread(data_t* data, unsigned char* img) {
+    if (io_putc(data->fd, 'q') != 1) { // sends exit byte
+        fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the end byte\r\n");
+        exit(1);
+    }
+    io_close(data->fd);
+    io_close(data->rd);
+    fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit output thread %lu\r\n", (unsigned long)pthread_self());
+    xwin_close();
+    free(img);
 }
 /* end of threads.c */
