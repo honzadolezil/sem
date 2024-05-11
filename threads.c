@@ -82,6 +82,14 @@ void handle_abort(data_t* data);
 void handle_reset(data_t* data);
 
 
+void out_handle_version(data_t* data, uint8_t* c, unsigned char* img);
+void out_handle_error(uint8_t* c);
+void out_handle_refresh(data_t* data, unsigned char* img);
+void out_handle_done(data_t* data, uint8_t* c);
+void out_handle_abort(data_t* data, uint8_t* c);
+void out_handle_compute_data(data_t* data, uint8_t* c, unsigned char* img);
+
+
 void open_files(data_t* data);
 
 unsigned char* allocate_image_buf(int width, int height);
@@ -174,82 +182,25 @@ void* output_thread(void* d)
       uint8_t c = '\0'; 
       io_getc_timeout(data->rd, 0,&c);      
       if(c == MSG_VERSION){
-         //printf("Version message recieved:");
-         message *msg = buffer_parse(data, MSG_VERSION);
-         printf("\033[1;32mVERSION\033[0m: %c. %c. %c\r\n", msg->data.version.major, msg->data.version.minor, msg->data.version.patch);
-         free(msg);
-         c = '\0';
+         out_handle_version(data, &c, img);
       }
       if(c == MSG_ERROR){
-         printf("\033[1;31mERROR\033[0m: Module sent error\r\n");
+         out_handle_error(&c);
       }
-
       if(data->refresh_screen){
-         printf("\033[1;34mINFO\033[0m: Refreshing screen\r\n");
-         data->refresh_screen = false;
-         default_redraw(img, W, H);
+         out_handle_refresh(data, img);
       }
-
       if(c == MSG_DONE){
-         //printf("Done message recieved:");
-         message *msg = buffer_parse(data, MSG_DONE);
-         printf("\033[1;34mINFO\033[0m: Done message recieved\r\n");
-         data->compute_used = false;
-         data->compute_done = true;
-         free(msg);
-         c = '\0';
+         out_handle_done(data, &c);
       }
-
       if(c == MSG_ABORT){
-         message *msg = buffer_parse(data, MSG_ABORT);
-         printf("\033[1;33mWARNING\033[0m: Abort message recieved\r\n");
-         data->compute_used = false;
-         data->abort = true;
-         free(msg);
-         c = '\0';
+         out_handle_abort(data, &c);
       }
-
-
       if(c == MSG_COMPUTE_DATA){
-         //printf("Compute data recieved:");
-         message *msg = buffer_parse(data, MSG_COMPUTE_DATA);
-      
-         uint8_t i_re = msg->data.compute_data.i_re;
-         uint8_t i_im = msg->data.compute_data.i_im;
-
-         int x_im = (msg->data.compute_data.cid % 10)*64;  // starting pos for redraw - one chunk
-         int y_im = (msg->data.compute_data.cid / 10)*48;
-
-         data->cid = msg->data.compute_data.cid;
-         
-        
-         int x = x_im + i_re;  // x coordinate of the pixel in the image
-         int y = y_im + i_im;  // y coordinate of the pixel in the image
-         int idx = (y * W + x) * 3;  // index of the pixel in the 1D array
-
-         double t = (double)msg->data.compute_data.iter / data->n; // t is in [0, 1]
-         
-         img[idx] = RED(t);; // red component
-         img[idx + 1] = GREEN(t); // green component
-         img[idx + 2] = BLUE(t); // blue component
-      
-
-         
-         if(data->cid != data->prev_cid){ // if the chunk is done (cid changed
-            xwin_redraw(W, H, img);
-         }
-
-         else if(data->cid == 99 && idx == 3*W*H){ // if the last chunk is done
-            xwin_redraw(W, H, img);
-         }
-         data->prev_cid = data->cid;
-
-
-         free(msg);
-         c = '\0';
+         out_handle_compute_data(data, &c, img);
       }
-   q = data->quit;
-   fflush(stdout);
+      q = data->quit;
+      fflush(stdout);
    }
    
 
@@ -296,9 +247,7 @@ void* alarm_thread(void* d)
 bool send_message(data_t *data, message *msg){
    uint8_t msg_buf[sizeof(message)];
    int size;
-   //printf("sending\n");
    fill_message_buf(msg, msg_buf,sizeof(message), &size);
-   //printf("filled");
    pthread_mutex_lock(data->mtx);
    int ret = write(data->fd, msg_buf, size);
    pthread_mutex_unlock(data->mtx);
@@ -490,5 +439,70 @@ void process_input(char c, data_t* data) {
             handle_reset(data);
             break;
     }
+}
+
+
+
+
+
+
+void out_handle_version(data_t* data, uint8_t* c, unsigned char* img) {
+    message *msg = buffer_parse(data, MSG_VERSION);
+    printf("\033[1;32mVERSION\033[0m: %c. %c. %c\r\n", msg->data.version.major, msg->data.version.minor, msg->data.version.patch);
+    free(msg);
+    *c = '\0';
+}
+
+void out_handle_error(uint8_t* c) {
+    printf("\033[1;31mERROR\033[0m: Module sent error\r\n");
+}
+
+void out_handle_refresh(data_t* data, unsigned char* img) {
+    printf("\033[1;34mINFO\033[0m: Refreshing screen\r\n");
+    data->refresh_screen = false;
+    default_redraw(img, W, H);
+}
+
+void out_handle_done(data_t* data, uint8_t* c) {
+    message *msg = buffer_parse(data, MSG_DONE);
+    printf("\033[1;34mINFO\033[0m: Done message recieved\r\n");
+    data->compute_used = false;
+    data->compute_done = true;
+    free(msg);
+    *c = '\0';
+}
+
+void out_handle_abort(data_t* data, uint8_t* c) {
+    message *msg = buffer_parse(data, MSG_ABORT);
+    printf("\033[1;33mWARNING\033[0m: Abort message recieved\r\n");
+    data->compute_used = false;
+    data->abort = true;
+    free(msg);
+    *c = '\0';
+}
+
+void out_handle_compute_data(data_t* data, uint8_t* c, unsigned char* img) {
+    message *msg = buffer_parse(data, MSG_COMPUTE_DATA);
+    uint8_t i_re = msg->data.compute_data.i_re;
+    uint8_t i_im = msg->data.compute_data.i_im;
+    int x_im = (msg->data.compute_data.cid % N_RE)*SIZE_C_W;  // starting pos for redraw - one chunk
+    int y_im = (msg->data.compute_data.cid / N_RE)*SIZE_C_H;
+    data->cid = msg->data.compute_data.cid;
+    int x = x_im + i_re;  // x coordinate of the pixel in the image
+    int y = y_im + i_im;  // y coordinate of the pixel in the image
+    int idx = (y * W + x) * 3;  // index of the pixel in the 1D array
+    double t = (double)msg->data.compute_data.iter / data->n; // t is in [0, 1]
+    img[idx] = RED(t);; // red component
+    img[idx + 1] = GREEN(t); // green component
+    img[idx + 2] = BLUE(t); // blue component
+    if(data->cid != data->prev_cid){ // if the chunk is done (cid changed
+        xwin_redraw(W, H, img);
+    }
+    else if(data->cid == NUM_CHUNKS-1 && idx == 3*W*H){ // if the last chunk is done
+        xwin_redraw(W, H, img);
+    }
+    data->prev_cid = data->cid;
+    free(msg);
+    *c = '\0';
 }
 /* end of threads.c */
