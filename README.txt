@@ -8,7 +8,7 @@ LAUNCH
 ARGUMENTS
     if you want to modify the code with your own arguments, you can launch the prgsem-main 
     with:
-        ./prgsem-main <c_re> <c_im> <im> <re> <d_im> <d_re> <resolution>
+        ./prgsem-main <c_re> <c_im> <im> <re> <d_im> <d_re>
         
         where <c_re> is real constant of C in julia set (double)
               <c_im> is imaginary part of constant C in julia set (double)
@@ -16,11 +16,6 @@ ARGUMENTS
               <re>   is a start of computation (real coordinate) (double)
               <d_im> is a step per pixel of imaginary part of number (double)
               <d_re> is a step per pixel of real part of number (double)
-              <resolution> is a resolution of the render (specify by integer number from selection below):
-                    '1' 320x240
-                    '2' 640x480
-                    '3' 1280x960
-                    '4' 1920x1440
 
         NOTE: you need to include all parameters when launching code - otherwise the program will 
               run with default values!
@@ -45,4 +40,3 @@ IN APP CONTROL:
 Safety note: 
     please DO NOT press all keys at once.. the program shall be safe, but during testing it liked
     to spawn black holes all around the server room. :-)
-

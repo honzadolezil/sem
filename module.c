@@ -50,10 +50,6 @@ typedef struct { // shared date structure;
   uint8_t n_re;
   uint8_t n_im;
 
-  int num_chunks;
-  int chunk_per_row;
-
-
 } data_t;
 
 // constants definitions
@@ -103,9 +99,7 @@ int main(int argc, char *argv[]) {
                  .c_im = 0,
                  .d_re = 0,
                  .d_im = 0,
-                 .n = 0,
-                 .chunk_per_row = CHUNK_PER_ROW,
-                 .num_chunks = NUM_CHUNKS,};
+                 .n = 0};
 
   // thread names and functions
   const char *threads_names[] = {"Input", "Calculation", "Stdin"};
@@ -188,7 +182,7 @@ void *calculation_thread(void *d) {
       double start_re = data->re;
       double start_im = data->im;
       while (!q) {
-        if (data->cid == data->num_chunks) {
+        if (data->cid == NUM_CHUNKS) {
           printf("\033[1;34mINFO\033[0m: : Calculation thread is done\r\n");
           pthread_mutex_unlock(data->mtx);
           message msg = {.type = MSG_DONE};
@@ -405,9 +399,6 @@ void process_message(data_t *data, uint8_t c) {
     data->is_cond_signaled = true;
     data->abort = false;
     data->is_abort = false;
-
-    data->chunk_per_row =data->n_re;
-    data->num_chunks = data->n_re * data->n_re;
     pthread_cond_broadcast(data->cond);
     free(msg);
   } else if (c == MSG_ABORT) {
@@ -429,9 +420,9 @@ int open_file(const char *filename, bool is_read) {
 }
 void calculate_chunk_coordinates(data_t *data, double start_re,
                                  double start_im) {
-  int x_im = (data->cid % data->chunk_per_row) * CHUNK_SIZE_W; // first chunk (real)
+  int x_im = (data->cid % CHUNK_PER_ROW) * CHUNK_SIZE_W; // first chunk (real)
   int y_im =
-      (data->cid / data->chunk_per_row) * CHUNK_SIZE_H; // first chunk (imaginary)
+      (data->cid / CHUNK_PER_ROW) * CHUNK_SIZE_H; // first chunk (imaginary)
   data->re = start_re + x_im * data->d_re;
   data->im = start_im + y_im * data->d_im;
 }

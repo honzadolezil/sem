@@ -71,12 +71,6 @@ typedef struct { // shared date structure
 
     bool local_compute;
 
-    int num_chunks;
-    int w;
-    int h;
-    int n_re;
-    int n_im;
-
 
 
    
@@ -118,7 +112,7 @@ void compute_julia_set(data_t *data, unsigned char *img);
 void open_files(data_t* data);
 
 unsigned char* allocate_image_buf(int width, int height);
-void default_redraw(unsigned char* img, int width, int height, data_t* data);
+void default_redraw(unsigned char* img, int width, int height);
 
 void save_image_as_png(unsigned char* img, unsigned width, unsigned height, const char* filename);
 
@@ -135,7 +129,7 @@ enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
 int main(int argc, char *argv[])
 {
    
-   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false, .module_quit = false, .re = -1.6, .im = 1.1, .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60, .img = NULL,.local_compute = false, .w = W, .h = H, .n_re = N_RE, .n_im = N_IM, .num_chunks = NUM_CHUNKS,};
+   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false, .module_quit = false, .re = -1.6, .im = 1.1, .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60, .img = NULL,.local_compute = false,};
    
    if (!get_values_from_argv(argc, argv, &data)) {
     printf("\033[1;33mWARNING\033[0m: Invalid input arguments - using default values\r\n");
@@ -196,11 +190,11 @@ void* output_thread(void* d)
    send_message(data, &msg);
 
    //open SDL window
-   xwin_init(data->w, data->h);
+   xwin_init(W, H);
   
-   unsigned char *img = allocate_image_buf(data->w, data->h);
+   unsigned char *img = allocate_image_buf(W, H);
    data->img = img;
-   default_redraw(img, data->w, data->h, data);
+   default_redraw(img, W, H);
    
 
    if (io_putc(data->fd, 'i') != 1) { // sends init byte
@@ -232,7 +226,7 @@ void* output_thread(void* d)
       if(data->local_compute){
          data->compute_used = true;
          compute_julia_set(data, img);
-         xwin_redraw(data->w, data->h, img);
+         xwin_redraw(W, H, img);
          data->local_compute = false;
          data->compute_used = false;
       }
@@ -382,7 +376,7 @@ void handle_compute_start(data_t* data) {
    data->abort = false;
 
    data->prev_cid = data->cid;
-   message msg2 = {.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = data->re, .im = data->im ,.n_re = data->n_re, .n_im = data->n_im}};
+   message msg2 = {.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = data->re, .im = data->im ,.n_re = N_RE, .n_im = N_IM}};
    send_message(data, &msg2);
    data->compute_used = true;
 }
@@ -431,17 +425,16 @@ unsigned char* allocate_image_buf(int width, int height) {
     return img;
 }
 
-void default_redraw(unsigned char* img, int width, int height, data_t* data) {
-    for (int y = 0; y < data->h; ++y) { // fill the image with some color
-        for (int x = 0; x < data->w; ++x) {
-            int idx = (y * data->w + x) * 3;
+void default_redraw(unsigned char* img, int width, int height) {
+    for (int y = 0; y < height; ++y) { // fill the image with some color
+        for (int x = 0; x < width; ++x) {
+            int idx = (y * width + x) * 3;
             img[idx] = 100; // red component
             img[idx + 1] = 0; // green component
             img[idx + 2] = 10; // blue component
         }
     }
-    printf("default redraw \r\n");
-    xwin_redraw(data->w, data->h, img);
+   xwin_redraw(W, H, img);
 }
 
 void process_input(char c, data_t* data) {
@@ -468,7 +461,7 @@ void process_input(char c, data_t* data) {
             handle_local_compute(data);
             break;
         case 'd':
-            save_image_as_png(data->img, data->w, data->h, "julia.png");
+            save_image_as_png(data->img, W, H, "julia.png");
             break;
     }
 }
@@ -492,8 +485,7 @@ void out_handle_error(uint8_t* c) {
 void out_handle_refresh(data_t* data, unsigned char* img) {
     printf("\033[1;34mINFO\033[0m: Refreshing screen\r\n");
     data->refresh_screen = false;
-    
-    default_redraw(data->img, data->w, data->w, data);
+    default_redraw(img, W, H);
 }
 
 void out_handle_done(data_t* data, uint8_t* c) {
@@ -518,21 +510,21 @@ void out_handle_compute_data(data_t* data, uint8_t* c, unsigned char* img) {
     message *msg = buffer_parse(data, MSG_COMPUTE_DATA);
     uint8_t i_re = msg->data.compute_data.i_re;
     uint8_t i_im = msg->data.compute_data.i_im;
-    int x_im = (msg->data.compute_data.cid % data->n_re)*SIZE_C_W;  // starting pos for redraw - one chunk
-    int y_im = (msg->data.compute_data.cid / data->n_im)*SIZE_C_H;
+    int x_im = (msg->data.compute_data.cid % N_RE)*SIZE_C_W;  // starting pos for redraw - one chunk
+    int y_im = (msg->data.compute_data.cid / N_RE)*SIZE_C_H;
     data->cid = msg->data.compute_data.cid;
     int x = x_im + i_re;  // x coordinate of the pixel in the image
     int y = y_im + i_im;  // y coordinate of the pixel in the image
-    int idx = (y * data->w + x) * 3;  // index of the pixel in the 1D array
+    int idx = (y * W + x) * 3;  // index of the pixel in the 1D array
     double t = (double)msg->data.compute_data.iter / data->n; // t is in [0, 1]
     img[idx] = RED(t);; // red component
     img[idx + 1] = GREEN(t); // green component
     img[idx + 2] = BLUE(t); // blue component
     if(data->cid != data->prev_cid){ // if the chunk is done (cid changed
-        xwin_redraw(data->w, data->h, img);
+        xwin_redraw(W, H, img);
     }
-    else if(data->cid == data->num_chunks-1 && idx == 3*data->w*data->h){ // if the last chunk is done
-        xwin_redraw(data->w, data->h, img);
+    else if(data->cid == NUM_CHUNKS-1 && idx == 3*W*H){ // if the last chunk is done
+        xwin_redraw(W, H, img);
     }
     data->prev_cid = data->cid;
     free(msg);
@@ -580,7 +572,7 @@ void compute_julia_set(data_t *data, unsigned char *img) {
   uint8_t iter;
   double complex Z;
   double complex C = data->c_re + data->c_im * I;
-  for (int x = 0; x <= data->w; x++) {   // for size of chunk
+  for (int x = 0; x <= W; x++) {   // for size of chunk
     for (int y = 0; y <= H; y++) { // for size of chunk
       Z = (data->re + x * data->d_re) + (data->im + y * data->d_im) * I;
       iter = 0;
@@ -592,7 +584,7 @@ void compute_julia_set(data_t *data, unsigned char *img) {
       // %d\r\n", data->cid, x, y, iter);
      
         
-        int idx = (y * data->w + x) * 3; 
+        int idx = (y * W + x) * 3; 
         double t = (double)iter / data->n; // t is in [0, 1]
         img[idx] = RED(t);; // red component
         img[idx + 1] = GREEN(t); // green component
@@ -633,7 +625,7 @@ void save_image_as_png(unsigned char* img, unsigned width, unsigned height, cons
 }
 bool get_values_from_argv(int argc, char *argv[], data_t* data) {
     double values[6];
-    if (argc == 8) {
+    if (argc == 7) {
         char *end;
         for (int i = 0; i < 6; i++) {
             values[i] = strtod(argv[i + 1], &end);
@@ -641,45 +633,10 @@ bool get_values_from_argv(int argc, char *argv[], data_t* data) {
                 return false;
             }
         }
-    
-    
-        int integer_param = strtol(argv[7], &end, 10);
-        if (*end != '\0' || integer_param < 1 || integer_param > 4) {
-            return false;
-        }
-
-        if(integer_param == 1){
-            data->num_chunks = 25;
-            data->w = 320;
-            data->h = 240;
-            data->n_re = 5;
-            data->n_im = 5;
-        }
-        else if(integer_param == 2){
-            data->num_chunks = 100;
-            data->w = 640;
-            data->h = 480;
-            data->n_re = 10;
-            data->n_im = 10;
-
-        }
-        else if(integer_param == 3){
-            data->num_chunks = 400;
-            data->w = 1280;
-            data->h = 960;
-            data->n_re = 20;
-            data->n_im = 20;
-        }
-        else if(integer_param == 4){
-            data->num_chunks = 900;
-            data->w = 1920;
-            data->h = 1440;
-            data->n_re = 30;
-            data->n_im = 30;
-        }
-
     }
-    else{return false;}
+    else {
+        return false;
+    }
 
     data->c_re = values[0];
     data->c_im = values[1];
@@ -687,8 +644,6 @@ bool get_values_from_argv(int argc, char *argv[], data_t* data) {
     data->re = values[3];
     data->d_im = values[4];
     data->d_re = values[5];
-
-    
 
     return true;
 }
