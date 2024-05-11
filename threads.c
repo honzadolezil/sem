@@ -635,6 +635,7 @@ void save_image_as_png(unsigned char* img, unsigned width, unsigned height, cons
 }
 bool get_values_from_argv(int argc, char *argv[], data_t* data) {
     double values[6];
+    uint8_t n;
     if (argc == 9) {
         char *end;
         for (int i = 0; i < 6; i++) {
@@ -644,11 +645,11 @@ bool get_values_from_argv(int argc, char *argv[], data_t* data) {
             }
         }
 
-        uint8_t n = (uint8_t)strtol(argv[7], &end, 10);
+        n = (uint8_t)strtol(argv[7], &end, 10);
         if (*end != '\0') {
             return false;
         }
-        data->n = n;
+        
     
     
         int integer_param = strtol(argv[8], &end, 10);
@@ -685,12 +686,14 @@ bool get_values_from_argv(int argc, char *argv[], data_t* data) {
     }
     else{return false;}
 
+
     data->c_re = values[0];
     data->c_im = values[1];
     data->im = values[2];
     data->re = values[3];
     data->d_im = values[4];
     data->d_re = values[5];
+    data->n = n;
 
     
 
