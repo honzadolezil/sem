@@ -17,6 +17,8 @@ ARGUMENTS
               <d_im> is a step per pixel of imaginary part of number (double)
               <d_re> is a step per pixel of real part of number (double)
 
+                
+
         NOTE: you need to include all parameters when launching code - otherwise the program will 
               run with default values!
     
