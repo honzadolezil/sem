@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <complex.h>
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -59,6 +60,18 @@ typedef struct { // shared date structure
 
    uint8_t n;
 
+    double c_re;
+    double c_im;
+    double d_re;
+    double d_im;
+    double re;
+    double im;
+
+    unsigned char* img;
+
+    bool local_compute;
+
+
 
    
 } data_t;
@@ -80,6 +93,7 @@ void handle_compute_start(data_t* data);
 void handle_refresh_screen(data_t* data);
 void handle_abort(data_t* data);
 void handle_reset(data_t* data);
+void handle_local_compute(data_t* data);
 
 
 void out_handle_version(data_t* data, uint8_t* c, unsigned char* img);
@@ -90,7 +104,9 @@ void out_handle_abort(data_t* data, uint8_t* c);
 void out_handle_compute_data(data_t* data, uint8_t* c, unsigned char* img);
 
 void exit_output_thread(data_t* data, unsigned char* img);
+void exit_input_thread(data_t* data, int* r);
 
+void compute_julia_set(data_t *data, unsigned char *img);
 
 void open_files(data_t* data);
 
@@ -111,7 +127,7 @@ enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
 int main(int argc, char *argv[])
 {
    call_termios(0);
-   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false, .module_quit = false };
+   data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false, .module_quit = false, .re = -1.6, .im = 1.1, .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60, .img = NULL,.local_compute = false,};
    const char *threads_names[] = { "Input", "Output", "Alarm", };
    void* (*thr_functions[])(void*) = { input_thread, output_thread, alarm_thread};
 
@@ -151,10 +167,7 @@ void* input_thread(void* d)
 
    data->quit = true;
    r = 1;
-   pthread_mutex_lock(data->mtx);
-   pthread_cond_broadcast(data->cond);
-   pthread_mutex_unlock(data->mtx);
-   fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit input thread\r\n");
+   exit_input_thread(data, &r);
    return &r;
 }
 
@@ -172,6 +185,7 @@ void* output_thread(void* d)
    xwin_init(W, H);
   
    unsigned char *img = allocate_image_buf(W, H);
+   data->img = img;
    default_redraw(img, W, H);
    
 
@@ -200,6 +214,13 @@ void* output_thread(void* d)
       }
       if(c == MSG_COMPUTE_DATA){
          out_handle_compute_data(data, &c, img);
+      }
+      if(data->local_compute){
+         data->compute_used = true;
+         compute_julia_set(data, img);
+         xwin_redraw(W, H, img);
+         data->local_compute = false;
+         data->compute_used = false;
       }
       q = data->quit;
       fflush(stdout);
@@ -323,8 +344,7 @@ void handle_get_version(data_t* data) {
      printf("\033[1;34mINFO\033[0m: Get version set\r\n");
 }
 void handle_set_compute(data_t* data) {
-    message msg = {.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60}};
-    data->n = 60;
+    message msg = {.type = MSG_SET_COMPUTE, .data.set_compute = { .c_re = data->c_re, .c_im = data->c_im, .d_re = data->d_re, .d_im = data->d_im, .n = data->n}};
     send_message(data, &msg);
     data->is_compute_set = true;
     printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
@@ -347,10 +367,8 @@ void handle_compute_start(data_t* data) {
    }
    data->abort = false;
 
-   double re = -1.6; //start of the x-coords (real)
-   double im =1.1; //start of the y-coords (imaginary)
    data->prev_cid = data->cid;
-   message msg2 = {.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = re, .im = im ,.n_re = N_RE, .n_im = N_IM}};
+   message msg2 = {.type = MSG_COMPUTE, .data.compute = { .cid = data->cid, .re = data->re, .im = data->im ,.n_re = N_RE, .n_im = N_IM}};
    send_message(data, &msg2);
    data->compute_used = true;
 }
@@ -431,6 +449,9 @@ void process_input(char c, data_t* data) {
         case 'r':
             handle_reset(data);
             break;
+        case 'c':   
+            handle_local_compute(data);
+            break;
     }
 }
 
@@ -510,5 +531,58 @@ void exit_output_thread(data_t* data, unsigned char* img) {
     fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit output thread %lu\r\n", (unsigned long)pthread_self());
     xwin_close();
     free(img);
+}
+
+void exit_input_thread(data_t* data, int* r) {
+    *r = 1;
+    pthread_mutex_lock(data->mtx);
+    pthread_cond_broadcast(data->cond);
+    pthread_mutex_unlock(data->mtx);
+    fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit input thread\r\n");
+}
+
+
+void handle_local_compute(data_t* data){
+    
+    if(data->compute_used){
+        printf("\033[1;33mWARNING\033[0m: Compute thread is already running\r\n");
+        printf("\033[1;32mHINT:\033[0m: If you want to abort computation, press a\r\n");
+        return;
+    }
+    data->local_compute = true;
+    
+
+}
+
+
+
+void compute_julia_set(data_t *data, unsigned char *img) {
+
+  uint8_t iter;
+  double complex Z;
+  double complex C = data->c_re + data->c_im * I;
+  for (int x = 0; x <= W; x++) {   // for size of chunk
+    for (int y = 0; y <= H; y++) { // for size of chunk
+      Z = (data->re + x * data->d_re) + (data->im + y * data->d_im) * I;
+      iter = 0;
+      while (cabs(Z) < 2 && iter < data->n) {
+        Z = Z * Z + C;
+        iter++;
+      }
+         // printf("\033[1;34mINFO\033[0m: : Chunk %d: x = %d, y = %d, iter =
+      // %d\r\n", data->cid, x, y, iter);
+     
+        
+        int idx = (y * W + x) * 3; 
+        double t = (double)iter / data->n; // t is in [0, 1]
+        img[idx] = RED(t);; // red component
+        img[idx + 1] = GREEN(t); // green component
+        img[idx + 2] = BLUE(t); // blue component
+
+      // printf("\033[1;34mINFO\033[0m: : sent compute data\r\n");
+    }
+  }
+  // printf("\033[1;34m-->\033[0m: : Chunk %d is done\n\r", data->cid);
+  
 }
 /* end of threads.c */
