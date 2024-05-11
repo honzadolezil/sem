@@ -531,9 +531,10 @@ void out_handle_compute_data(data_t* data, uint8_t* c, unsigned char* img) {
     if(data->cid != data->prev_cid){ // if the chunk is done (cid changed
         xwin_redraw(data->w, data->h, img);
     }
-    else if(data->cid == data->num_chunks-1 && idx == 3*data->w*data->h){ // if the last chunk is done
+    else if((data->cid == data->num_chunks-1 && idx == 3*data->w*data->h)){ // if the last chunk is done
         xwin_redraw(data->w, data->h, img);
     }
+    
     data->prev_cid = data->cid;
     free(msg);
     *c = '\0';
@@ -650,11 +651,11 @@ bool get_values_from_argv(int argc, char *argv[], data_t* data) {
         }
 
         if(integer_param == 1){
-            data->num_chunks = 25;
-            data->w = 320;
-            data->h = 240;
-            data->n_re = 5;
-            data->n_im = 5;
+            data->num_chunks = 144;
+            data->w = 768;
+            data->h = 576;
+            data->n_re = 12;
+            data->n_im = 12;
         }
         else if(integer_param == 2){
             data->num_chunks = 100;

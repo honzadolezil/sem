@@ -336,7 +336,7 @@ void compute_julia_set(data_t *data) {
       pthread_mutex_lock(data->mtx);
     }
   }
-  // printf("\033[1;34m-->\033[0m: : Chunk %d is done\n\r", data->cid);
+  //printf("\033[1;34m-->\033[0m: : Chunk %d is done\n\r", data->cid);
 }
 
 void create_threads(pthread_t threads[], void *(*thr_functions[])(void *),

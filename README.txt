@@ -17,7 +17,7 @@ ARGUMENTS
               <d_im> is a step per pixel of imaginary part of number (double)
               <d_re> is a step per pixel of real part of number (double)
               <resolution> is a resolution of the render (specify by integer number from selection below):
-                    '1' 320x240 - xwin_close makes weird error i dont understand :(
+                    '1' 758x576 
                     '2' 640x480
             
 
