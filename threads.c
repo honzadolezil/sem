@@ -113,6 +113,7 @@ void open_files(data_t* data);
 unsigned char* allocate_image_buf(int width, int height);
 void default_redraw(unsigned char* img, int width, int height);
 
+void save_image_as_png(unsigned char* img, unsigned width, unsigned height, const char* filename);
 
 void* input_thread(void*);
 void* output_thread(void*);
@@ -452,6 +453,9 @@ void process_input(char c, data_t* data) {
         case 'c':   
             handle_local_compute(data);
             break;
+        case 'd':
+            save_image_as_png(data->img, W, H, "julia.png");
+            break;
     }
 }
 
@@ -586,3 +590,29 @@ void compute_julia_set(data_t *data, unsigned char *img) {
   
 }
 /* end of threads.c */
+
+void save_image_as_png(unsigned char* img, unsigned width, unsigned height, const char* filename) {
+    FILE* tmpFile = fopen("tmp.ppm", "wb"); //binary write 
+    if (tmpFile == NULL) {
+        fprintf(stderr,"Failed to open temp file");
+        return;
+    }
+
+    // Write the PPM header
+    fprintf(tmpFile, "P6\n%d %d\n255\n", width, height); //magic number P6 - using ImageMagick
+
+    // Write the image data
+    if (fwrite(img, 3, width * height, tmpFile) != width * height) {
+        fprintf(stderr,"Failed to write image data");
+    }
+
+    fclose(tmpFile);
+
+    // Convert the PPM image to PNG using ImageMagick
+    char command[256];
+    snprintf(command, sizeof(command), "convert tmp.ppm %s", filename);
+    system(command);
+
+    // Delete the temporary PPM file
+    remove("tmp.ppm");
+}
