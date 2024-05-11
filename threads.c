@@ -83,6 +83,7 @@ void join_threads(pthread_t threads[], const char *threads_names[]);
 
 void init_mutex_cond(pthread_mutex_t *mtx, pthread_cond_t *cond, data_t *data);
 void call_termios(int reset);
+bool get_values_from_argv(int argc, char *argv[], data_t* data);
 
 
 void process_input(char c, data_t* data);
@@ -127,8 +128,14 @@ enum { INPUT, OUTPUT, ALARM, NUM_THREADS };
 // - main function -----------------------------------------------------------
 int main(int argc, char *argv[])
 {
-   call_termios(0);
+   
    data_t data = { .alarm_period = 0,.quit = false, .fd = EOF, .is_serial_open = false, .abort = false, .cid = 0, .compute_used = false, .is_compute_set = false, .refresh_screen = false, .compute_done = false, .module_quit = false, .re = -1.6, .im = 1.1, .c_re = -0.4, .c_im = 0.6, .d_re = 0.005, .d_im = (double)-11/2400, .n = 60, .img = NULL,.local_compute = false,};
+   
+   if (!get_values_from_argv(argc, argv, &data)) {
+    printf("\033[1;33mWARNING\033[0m: Invalid input arguments - using default values\r\n");
+   }
+    
+   call_termios(0);
    const char *threads_names[] = { "Input", "Output", "Alarm", };
    void* (*thr_functions[])(void*) = { input_thread, output_thread, alarm_thread};
 
@@ -615,4 +622,28 @@ void save_image_as_png(unsigned char* img, unsigned width, unsigned height, cons
 
     // Delete the temporary PPM file
     remove("tmp.ppm");
+}
+bool get_values_from_argv(int argc, char *argv[], data_t* data) {
+    double values[6];
+    if (argc == 7) {
+        char *end;
+        for (int i = 0; i < 6; i++) {
+            values[i] = strtod(argv[i + 1], &end);
+            if (*end != '\0') {
+                return false;
+            }
+        }
+    }
+    else {
+        return false;
+    }
+
+    data->c_re = values[0];
+    data->c_im = values[1];
+    data->im = values[2];
+    data->re = values[3];
+    data->d_im = values[4];
+    data->d_re = values[5];
+
+    return true;
 }
