@@ -550,6 +550,7 @@ void exit_output_thread(data_t* data, unsigned char* img) {
     fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit output thread %lu\r\n", (unsigned long)pthread_self());
     xwin_close();
     free(img);
+    data->module_quit = true;
 }
 
 void exit_input_thread(data_t* data, int* r) {
@@ -581,7 +582,7 @@ void compute_julia_set(data_t *data, unsigned char *img) {
   double complex Z;
   double complex C = data->c_re + data->c_im * I;
   for (int x = 0; x <= data->w; x++) {   // for size of chunk
-    for (int y = 0; y <= H; y++) { // for size of chunk
+    for (int y = 0; y <= data->h; y++) { // for size of chunk
       Z = (data->re + x * data->d_re) + (data->im + y * data->d_im) * I;
       iter = 0;
       while (cabs(Z) < 2 && iter < data->n) {
