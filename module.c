@@ -53,7 +53,6 @@ typedef struct { // shared date structure;
   int num_chunks;
   int chunk_per_row;
 
-
 } data_t;
 
 // constants definitions
@@ -86,26 +85,28 @@ int main(int argc, char *argv[]) {
   call_termios(0); // set terminal settings
 
   // shared data structure
-  data_t data = {.quit = false,
-                 .fd = EOF,
-                 .is_serial_open = false,
-                 .abort = false,
-                 .is_cond_signaled = false,
-                 .cid = 0,
-                 .re = 0,
-                 .im = 0,
-                 .n_re = 0,
-                 .n_im = 0,
-                 .is_message_recieved = false,
-                 .mtx = NULL,
-                 .cond = NULL,
-                 .c_re = 0,
-                 .c_im = 0,
-                 .d_re = 0,
-                 .d_im = 0,
-                 .n = 0,
-                 .chunk_per_row = CHUNK_PER_ROW,
-                 .num_chunks = NUM_CHUNKS,};
+  data_t data = {
+      .quit = false,
+      .fd = EOF,
+      .is_serial_open = false,
+      .abort = false,
+      .is_cond_signaled = false,
+      .cid = 0,
+      .re = 0,
+      .im = 0,
+      .n_re = 0,
+      .n_im = 0,
+      .is_message_recieved = false,
+      .mtx = NULL,
+      .cond = NULL,
+      .c_re = 0,
+      .c_im = 0,
+      .d_re = 0,
+      .d_im = 0,
+      .n = 0,
+      .chunk_per_row = CHUNK_PER_ROW,
+      .num_chunks = NUM_CHUNKS,
+  };
 
   // thread names and functions
   const char *threads_names[] = {"Input", "Calculation", "Stdin"};
@@ -336,7 +337,7 @@ void compute_julia_set(data_t *data) {
       pthread_mutex_lock(data->mtx);
     }
   }
-  //printf("\033[1;34m-->\033[0m: : Chunk %d is done\n\r", data->cid);
+  // printf("\033[1;34m-->\033[0m: : Chunk %d is done\n\r", data->cid);
 }
 
 void create_threads(pthread_t threads[], void *(*thr_functions[])(void *),
@@ -406,7 +407,7 @@ void process_message(data_t *data, uint8_t c) {
     data->abort = false;
     data->is_abort = false;
 
-    data->chunk_per_row =data->n_re;
+    data->chunk_per_row = data->n_re;
     data->num_chunks = data->n_re * data->n_re;
     pthread_cond_broadcast(data->cond);
     free(msg);
@@ -429,9 +430,10 @@ int open_file(const char *filename, bool is_read) {
 }
 void calculate_chunk_coordinates(data_t *data, double start_re,
                                  double start_im) {
-  int x_im = (data->cid % data->chunk_per_row) * CHUNK_SIZE_W; // first chunk (real)
-  int y_im =
-      (data->cid / data->chunk_per_row) * CHUNK_SIZE_H; // first chunk (imaginary)
+  int x_im =
+      (data->cid % data->chunk_per_row) * CHUNK_SIZE_W; // first chunk (real)
+  int y_im = (data->cid / data->chunk_per_row) *
+             CHUNK_SIZE_H; // first chunk (imaginary)
   data->re = start_re + x_im * data->d_re;
   data->im = start_im + y_im * data->d_im;
 }
