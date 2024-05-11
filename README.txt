@@ -1,4 +1,11 @@
 Welcome to the most advanced Julia's set visualiser ever known to mankind. 
+Author: Jan Dolezil 
+
+PRE LAUNCH:
+    the program needs to have fifo pipes. you can use included script create_pipes.sh or
+    you can create them yourself:
+    ->  mkfifo /tmp/pipe.out
+    ->  mkfifo /tmp/pipe.in
 
 LAUNCH
     two programs need to be launched:
@@ -24,9 +31,8 @@ ARGUMENTS
             
 
         NOTE: you need to include all parameters when launching code - otherwise the program will 
-              run with default values!
-    
-
+              run with default values! If your parameter input is incorrect the program will also run 
+              with default.
 
 IN APP CONTROL:
     press:
@@ -45,4 +51,4 @@ IN APP CONTROL:
 
 Safety note: 
     please DO NOT press all keys at once.. the program shall be safe, but during testing it liked
-    to spawn black holes all around the server room. :-)
+    to spawn black holes all around the server room.
