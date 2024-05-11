@@ -283,13 +283,8 @@ void* alarm_thread(void* d)
    
 
    while (!q) {
-      //usleep(period);
-     ;
       q = data->quit;
-      
       xwin_poll_events();
-
-      
    }
    fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit alarm thread %lu\r\n", (unsigned long)pthread_self());
    return &r;
