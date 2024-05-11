@@ -154,7 +154,7 @@ void* input_thread(void* d)
    pthread_mutex_lock(data->mtx);
    pthread_cond_broadcast(data->cond);
    pthread_mutex_unlock(data->mtx);
-   fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit input thread %lu\r\n", (unsigned long)pthread_self());
+   fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit input thread\r\n");
    return &r;
 }
 
@@ -204,7 +204,7 @@ void* output_thread(void* d)
       q = data->quit;
       fflush(stdout);
    }
-   
+
    exit_output_thread(data, img);
    return &r;
 }
