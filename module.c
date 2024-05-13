@@ -178,7 +178,6 @@ void *input_thread(void *d) {
   pthread_mutex_lock(data->mtx);
   data->quit = true;
   pthread_mutex_unlock(data->mtx);
-  r = 1;
   pthread_cond_broadcast(data->cond);
   fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit input thread\r\n");
   return &r;
@@ -186,7 +185,7 @@ void *input_thread(void *d) {
 
 void *calculation_thread(void *d) {
   data_t *data = (data_t *)d;
-  static int r = 1;
+  static int r = 0;
 
   bool q = false;
   pthread_mutex_lock(data->mtx);
@@ -372,9 +371,8 @@ void join_threads(pthread_t threads[], const char *threads_names[]) {
     printf("\033[1;35mTHREAD\033[0m: Call join to the thread %s\r\n",
            threads_names[i]);
     int r = pthread_join(threads[i], (void *)&ex);
-    printf("\033[1;35mTHREAD\033[0m: Joining the thread %s has been %s - exit "
-           "value %i\r\n",
-           threads_names[i], (r == 0 ? "OK" : "FAIL"), *ex);
+    printf("\033[1;35mTHREAD\033[0m: Joining the thread %s has been %s\r\n",
+           threads_names[i], (r == 0 ? "OK" : "FAIL"));
   }
 }
 
