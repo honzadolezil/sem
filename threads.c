@@ -198,8 +198,9 @@ void *input_thread(void *d) {
   while ((c = getchar()) != 'q') {
     process_input(c, data);
   }
-
+  pthread_mutex_lock(data->mtx);
   data->quit = true;
+  pthread_mutex_unlock(data->mtx);
   r = 1;
   exit_input_thread(data, &r);
   return &r;
@@ -218,7 +219,9 @@ void *output_thread(void *d) {
   xwin_init(data->w, data->h);
 
   unsigned char *img = allocate_image_buf(data->w, data->h);
+  pthread_mutex_lock(data->mtx);
   data->img = img;
+  pthread_mutex_unlock(data->mtx);
   default_redraw(img, data->w, data->h, data);
 
   if (io_putc(data->fd, 'i') != 1) { // sends init byte
@@ -248,11 +251,15 @@ void *output_thread(void *d) {
       out_handle_compute_data(data, &c, img);
     }
     if (data->local_compute) {
+      pthread_mutex_lock(data->mtx);
       data->compute_used = true;
+      pthread_mutex_unlock(data->mtx);
       compute_julia_set(data, img);
       xwin_redraw(data->w, data->h, img);
+      pthread_mutex_lock(data->mtx);
       data->local_compute = false;
       data->compute_used = false;
+      pthread_mutex_unlock(data->mtx);
     }
     q = data->quit;
     fflush(stdout);
@@ -371,7 +378,9 @@ void handle_set_compute(data_t *data) {
                                       .d_im = data->d_im,
                                       .n = data->n}};
   send_message(data, &msg);
+  pthread_mutex_lock(data->mtx);
   data->is_compute_set = true;
+  pthread_mutex_unlock(data->mtx);
   printf("\033[1;34mINFO\033[0m: Set compute message sent\r\n");
 }
 void handle_compute_start(data_t *data) {
@@ -392,9 +401,10 @@ void handle_compute_start(data_t *data) {
     printf("\033[1;32mHINT:\033[0m: If you want to reset cid, press r\r\n");
     return;
   }
+  pthread_mutex_lock(data->mtx);
   data->abort = false;
-
   data->prev_cid = data->cid;
+  pthread_mutex_unlock(data->mtx);
   message msg2 = {.type = MSG_COMPUTE,
                   .data.compute = {.cid = data->cid,
                                    .re = data->re,
@@ -402,12 +412,19 @@ void handle_compute_start(data_t *data) {
                                    .n_re = data->n_re,
                                    .n_im = data->n_im}};
   send_message(data, &msg2);
+  pthread_mutex_lock(data->mtx);
   data->compute_used = true;
+  pthread_mutex_unlock(data->mtx);
 }
 
 void handle_refresh_screen(data_t *data) {
-  if (!data->compute_used)
+  if (!data->compute_used){
+    pthread_mutex_lock(data->mtx);
     data->refresh_screen = true;
+    pthread_mutex_unlock(data->mtx);
+  }
+  
+   
   else {
     printf("\033[1;33mWARNING\033[0m: Computing is underway - cant refresh "
            "window\r\n");
@@ -417,16 +434,21 @@ void handle_refresh_screen(data_t *data) {
 }
 
 void handle_abort(data_t *data) {
+  pthread_mutex_lock(data->mtx);
   data->abort = true;
   data->compute_used = false;
+  pthread_mutex_unlock(data->mtx);
   message msg2 = {.type = MSG_ABORT};
   send_message(data, &msg2);
 }
 
 void handle_reset(data_t *data) {
+  pthread_mutex_lock(data->mtx);
   data->cid = 0;
   printf("\033[1;34mINFO\033[0m: Reset cid\r\n");
+
   data->compute_done = false;
+  pthread_mutex_unlock(data->mtx);
 }
 
 void open_files(data_t *data) {
@@ -509,16 +531,19 @@ void out_handle_error(uint8_t *c) {
 
 void out_handle_refresh(data_t *data, unsigned char *img) {
   printf("\033[1;34mINFO\033[0m: Refreshing screen\r\n");
+  pthread_mutex_lock(data->mtx);
   data->refresh_screen = false;
-
+  pthread_mutex_unlock(data->mtx);
   default_redraw(data->img, data->w, data->w, data);
 }
 
 void out_handle_done(data_t *data, uint8_t *c) {
   message *msg = buffer_parse(data, MSG_DONE);
   printf("\033[1;34mINFO\033[0m: Done message recieved\r\n");
+  pthread_mutex_lock(data->mtx);
   data->compute_used = false;
   data->compute_done = true;
+  pthread_mutex_unlock(data->mtx);
   free(msg);
   *c = '\0';
 }
@@ -526,8 +551,10 @@ void out_handle_done(data_t *data, uint8_t *c) {
 void out_handle_abort(data_t *data, uint8_t *c) {
   message *msg = buffer_parse(data, MSG_ABORT);
   printf("\033[1;33mWARNING\033[0m: Abort message recieved\r\n");
+  pthread_mutex_lock(data->mtx);
   data->compute_used = false;
   data->abort = true;
+  pthread_mutex_unlock(data->mtx);
   free(msg);
   *c = '\0';
 }
@@ -554,8 +581,9 @@ void out_handle_compute_data(data_t *data, uint8_t *c, unsigned char *img) {
               idx == 3 * data->w * data->h)) { // if the last chunk is done
     xwin_redraw(data->w, data->h, img);
   }
-
+  pthread_mutex_lock(data->mtx);
   data->prev_cid = data->cid;
+  pthread_mutex_unlock(data->mtx);
   free(msg);
   *c = '\0';
 }
@@ -590,7 +618,9 @@ void handle_local_compute(data_t *data) {
            "a\r\n");
     return;
   }
+  pthread_mutex_lock(data->mtx);
   data->local_compute = true;
+  pthread_mutex_unlock(data->mtx);
 }
 
 void compute_julia_set(data_t *data, unsigned char *img) {
@@ -673,29 +703,35 @@ bool get_values_from_argv(int argc, char *argv[], data_t *data) {
     }
 
     if (integer_param == 1) {
+      pthread_mutex_lock(data->mtx);
       data->num_chunks = 144;
       data->w = 768;
       data->h = 576;
       data->n_re = 12;
       data->n_im = 12;
+      pthread_mutex_unlock(data->mtx);
     } else if (integer_param == 2) {
+      pthread_mutex_lock(data->mtx);
       data->num_chunks = 100;
       data->w = 640;
       data->h = 480;
       data->n_re = 10;
       data->n_im = 10;
+      pthread_mutex_unlock(data->mtx);
 
     } else if (integer_param == 3) {
+      pthread_mutex_lock(data->mtx);
       data->num_chunks = 13 * 13;
       data->w = 832;
       data->h = 624;
       data->n_re = 13;
       data->n_im = 13;
+      pthread_mutex_unlock(data->mtx);
     }
   } else {
     return false;
   }
-
+  pthread_mutex_lock(data->mtx);
   data->c_re = values[0];
   data->c_im = values[1];
   data->im = values[2];
@@ -703,5 +739,6 @@ bool get_values_from_argv(int argc, char *argv[], data_t *data) {
   data->d_im = values[4];
   data->d_re = values[5];
   data->n = n;
+  pthread_mutex_unlock(data->mtx);
   return true;
 }
