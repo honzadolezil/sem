@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <termios.h>
-#include <threads.h>
+
 #include <unistd.h> // for STDIN_FILENO
 
 #include "messages.h"
