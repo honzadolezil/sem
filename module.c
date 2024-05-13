@@ -161,7 +161,9 @@ void *input_thread(void *d) {
       c = '\0';
       break;
     } else if (c == 'q') {
+      pthread_mutex_lock(data->mtx);
       data->quit = true;
+      pthread_mutex_lock(data->mtx);
       break;
     }
   }
@@ -173,7 +175,9 @@ void *input_thread(void *d) {
     io_getc_timeout(data->fd, 0, &c);
     process_message(data, c);
   }
+  pthread_mutex_lock(data->mtx);
   data->quit = true;
+  pthread_mutex_unlock(data->mtx);
   r = 1;
   pthread_cond_broadcast(data->cond);
   fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit input thread\r\n");
@@ -245,8 +249,10 @@ void *input_from_stdin_thread(void *d) {
         message msg = {.type = MSG_ABORT};
         send_message(data, &msg);
         fsync(data->rd);
+        pthread_mutex_lock(data->mtx);
         data->abort = true;
         data->is_abort = true;
+        pthread_mutex_unlock(data->mtx);
         printf("\033[1;33mWARNING\033[0m: : Aborted from module\r\n");
       }
     }
@@ -382,7 +388,9 @@ void init_mutex_cond(pthread_mutex_t *mtx, pthread_cond_t *cond, data_t *data) {
 
 void process_message(data_t *data, uint8_t c) {
   if (c == 'q') {
+    pthread_mutex_lock(data->mtx);
     data->quit = true;
+    pthread_mutex_unlock(data->mtx);
   } else if (c == MSG_GET_VERSION) {
     printf("\033[1;34mINFO\033[0m: : sending version\r\n");
     message msg = {.type = MSG_VERSION, .data.version = {'1', '2', '2'}};
@@ -397,17 +405,20 @@ void process_message(data_t *data, uint8_t c) {
   } else if (c == MSG_SET_COMPUTE) {
     printf("\033[1;34mINFO\033[0m: : received set compute\r\n");
     message *msg = buffer_parse(data, MSG_SET_COMPUTE);
+    pthread_mutex_lock(data->mtx);
     data->c_re = msg->data.set_compute.c_re;
     data->c_im = msg->data.set_compute.c_im;
     data->d_re = msg->data.set_compute.d_re;
     data->d_im = msg->data.set_compute.d_im;
     data->n = msg->data.set_compute.n;
+    pthread_mutex_unlock(data->mtx);
     printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\r\n",
            data->c_re, data->c_im, data->d_re, data->d_im, data->n);
     free(msg);
   } else if (c == MSG_COMPUTE) {
     printf("\033[1;34mINFO\033[0m: : received compute\r\n");
     message *msg = buffer_parse(data, MSG_COMPUTE);
+    pthread_mutex_lock(data->mtx);
     data->cid = msg->data.compute.cid;
     data->re = msg->data.compute.re;
     data->im = msg->data.compute.im;
@@ -419,9 +430,11 @@ void process_message(data_t *data, uint8_t c) {
 
     data->chunk_per_row = data->n_re;
     data->num_chunks = data->n_re * data->n_re;
+    pthread_mutex_unlock(data->mtx);
     pthread_cond_broadcast(data->cond);
     free(msg);
   } else if (c == MSG_ABORT) {
+    pthread_mutex_lock(data->mtx);
     data->abort = true;
     pthread_mutex_unlock(data->mtx);
     message *msg = buffer_parse(data, MSG_ABORT);
