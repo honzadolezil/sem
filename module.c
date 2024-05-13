@@ -135,7 +135,17 @@ void *input_thread(void *d) {
   static int r = 0;
   // open comunication pipes
   data->fd = open_file(MY_DEVICE_OUT, true);
+   if (data->fd == EOF) {
+    fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to open the file %s\n",
+            MY_DEVICE_OUT);
+    exit(1);
+  }
   data->rd = open_file(MY_DEVICE_IN, false);
+  if (data->rd == EOF) {
+    fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to open the file %s\n",
+            MY_DEVICE_IN);
+    exit(1);
+  }
 
   printf("\033[1;34mINFO\033[0m: : Input thread is running\r\n");
 
