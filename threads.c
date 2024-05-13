@@ -27,6 +27,8 @@
 #define N_RE 10
 #define N_IM 10
 
+#define SLEEPTIME 10000
+
 #define RED(t) (uint8_t)(9 * (1 - t) * t * t * t * 255)
 #define GREEN(t) (uint8_t)(15 * (1 - t) * (1 - t) * t * t * 255)
 #define BLUE(t) (uint8_t)(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255)
@@ -200,7 +202,7 @@ void *input_thread(void *d) {
   }
   handle_abort(data);
   usleep(
-      10000); // wait for potential abort of computation (against memory leaks)
+      SLEEPTIME); // wait for potential abort of computation (against memory leaks)
   pthread_mutex_lock(data->mtx);
   data->quit = true;
   pthread_mutex_unlock(data->mtx);
@@ -268,7 +270,6 @@ void *output_thread(void *d) {
   }
 
   exit_output_thread(data, img);
-  r = 1;
   return &r;
 }
 
