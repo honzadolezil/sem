@@ -29,6 +29,12 @@
 
 #define SLEEPTIME 10000
 
+#define DEFAULT_RED 100
+#define DEFAULT_GREEN 0
+#define DEFAULT_BLUE 10
+
+#define BYTES_PER_PIXEL 3
+
 #define RED(t) (uint8_t)(9 * (1 - t) * t * t * t * 255)
 #define GREEN(t) (uint8_t)(15 * (1 - t) * (1 - t) * t * t * 255)
 #define BLUE(t) (uint8_t)(8.5 * (1 - t) * (1 - t) * (1 - t) * t * 255)
@@ -139,7 +145,7 @@ int main(int argc, char *argv[]) {
       .refresh_screen = false,
       .compute_done = false,
       .module_quit = false,
-      .re = -1.6,
+      .re = -1.6,   //default values
       .im = 1.1,
       .c_re = -0.4,
       .c_im = 0.6,
@@ -468,7 +474,7 @@ void open_files(data_t *data) {
 }
 
 unsigned char *allocate_image_buf(int width, int height) {
-  unsigned char *img = malloc(width * height * 3); // 3 bytes per pixel for RGB
+  unsigned char *img = malloc(width * height * BYTES_PER_PIXEL); // 3 bytes per pixel for RGB
   if (img == NULL) {
     fprintf(stderr,
             "\033[1;31mERROR\033[0m: Failed to allocate memory for image\n");
@@ -480,10 +486,10 @@ unsigned char *allocate_image_buf(int width, int height) {
 void default_redraw(unsigned char *img, int width, int height, data_t *data) {
   for (int y = 0; y < data->h; ++y) { // fill the image with some color
     for (int x = 0; x < data->w; ++x) {
-      int idx = (y * data->w + x) * 3;
-      img[idx] = 100;    // red component
-      img[idx + 1] = 0;  // green component
-      img[idx + 2] = 10; // blue component
+      int idx = (y * data->w + x) * BYTES_PER_PIXEL;
+      img[idx] = DEFAULT_RED;    // red component
+      img[idx + 1] = DEFAULT_GREEN;  // green component
+      img[idx + 2] = DEFAULT_BLUE; // blue component
     }
   }
   printf("\033[1;34mINFO\033[0m: Default image set\r\n");
@@ -572,7 +578,7 @@ void out_handle_compute_data(data_t *data, uint8_t *c, unsigned char *img) {
   data->cid = msg->data.compute_data.cid;
   int x = x_im + i_re;             // x coordinate of the pixel in the image
   int y = y_im + i_im;             // y coordinate of the pixel in the image
-  int idx = (y * data->w + x) * 3; // index of the pixel in the 1D array
+  int idx = (y * data->w + x) * BYTES_PER_PIXEL; // index of the pixel in the 1D array
   double t = (double)msg->data.compute_data.iter / data->n; // t is in [0, 1]
   img[idx] = RED(t);
   ;                                  // red component
@@ -581,7 +587,7 @@ void out_handle_compute_data(data_t *data, uint8_t *c, unsigned char *img) {
   if (data->cid != data->prev_cid) { // if the chunk is done (cid changed
     xwin_redraw(data->w, data->h, img);
   } else if ((data->cid == data->num_chunks - 1 &&
-              idx == 3 * data->w * data->h)) { // if the last chunk is done
+              idx == BYTES_PER_PIXEL * data->w * data->h)) { // if the last chunk is done
     xwin_redraw(data->w, data->h, img);
   }
   pthread_mutex_lock(data->mtx);
@@ -641,7 +647,7 @@ void compute_julia_set(data_t *data, unsigned char *img) {
       // printf("\033[1;34mINFO\033[0m: : Chunk %d: x = %d, y = %d, iter =
       // %d\r\n", data->cid, x, y, iter);
 
-      int idx = (y * data->w + x) * 3;
+      int idx = (y * data->w + x) * BYTES_PER_PIXEL;
       double t = (double)iter / data->n; // t is in [0, 1]
       img[idx] = RED(t);
       ;                        // red component
