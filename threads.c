@@ -102,7 +102,7 @@ void out_handle_abort(data_t *data, uint8_t *c);
 void out_handle_compute_data(data_t *data, uint8_t *c, unsigned char *img);
 
 void exit_output_thread(data_t *data, unsigned char *img);
-void exit_input_thread(data_t *data, int *r);
+void exit_input_thread(data_t *data);
 
 void compute_julia_set(data_t *data, unsigned char *img);
 
@@ -201,8 +201,7 @@ void *input_thread(void *d) {
   pthread_mutex_lock(data->mtx);
   data->quit = true;
   pthread_mutex_unlock(data->mtx);
-  r = 1;
-  exit_input_thread(data, &r);
+  exit_input_thread(data);
   return &r;
 }
 
@@ -266,6 +265,7 @@ void *output_thread(void *d) {
   }
 
   exit_output_thread(data, img);
+  r=1;
   return &r;
 }
 
@@ -286,8 +286,7 @@ void *alarm_thread(void *d) {
     q = data->quit;
     xwin_poll_events();
   }
-  fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit alarm thread %lu\r\n",
-          (unsigned long)pthread_self());
+  fprintf(stdin, "\033[1;35mTHREAD\033[0m: Exit alarm thread\r\n");
   return &r;
 }
 
@@ -339,9 +338,8 @@ void join_threads(pthread_t threads[], const char *threads_names[]) {
     printf("\033[1;35mTHREAD\033[0m: Call join to the thread %s\r\n",
            threads_names[i]);
     int r = pthread_join(threads[i], (void *)&ex);
-    printf("\033[1;35mTHREAD\033[0m: Joining the thread %s has been %s - exit "
-           "value %i\r\n",
-           threads_names[i], (r == 0 ? "OK" : "FAIL"), *ex);
+    printf("\033[1;35mTHREAD\033[0m: Joining the thread %s has been %s\r\n",
+           threads_names[i], (r == 0 ? "OK" : "FAIL"));
   }
 }
 
@@ -469,7 +467,7 @@ void open_files(data_t *data) {
 unsigned char *allocate_image_buf(int width, int height) {
   unsigned char *img = malloc(width * height * 3); // 3 bytes per pixel for RGB
   if (img == NULL) {
-    fprintf(stderr, "Failed to allocate memory for image\n");
+    fprintf(stderr, "\033[1;31mERROR\033[0m: Failed to allocate memory for image\n");
     exit(1);
   }
   return img;
@@ -484,7 +482,7 @@ void default_redraw(unsigned char *img, int width, int height, data_t *data) {
       img[idx + 2] = 10; // blue component
     }
   }
-  printf("default redraw \r\n");
+  printf("\033[1;34mINFO\033[0m: Default image set\r\n");
   xwin_redraw(data->w, data->h, img);
 }
 
@@ -519,7 +517,7 @@ void process_input(char c, data_t *data) {
 
 void out_handle_version(data_t *data, uint8_t *c, unsigned char *img) {
   message *msg = buffer_parse(data, MSG_VERSION);
-  printf("\033[1;32mVERSION\033[0m: %c. %c. %c\r\n", msg->data.version.major,
+  printf("\033[1;32mRECIEVED VERSION\033[0m: %c. %c. %c\r\n", msg->data.version.major,
          msg->data.version.minor, msg->data.version.patch);
   free(msg);
   *c = '\0';
@@ -589,25 +587,25 @@ void out_handle_compute_data(data_t *data, uint8_t *c, unsigned char *img) {
 }
 
 void exit_output_thread(data_t *data, unsigned char *img) {
+  message msg = {.type = MSG_ABORT};
+  send_message(data, &msg);
   if (io_putc(data->fd, 'q') != 1) { // sends exit byte
     fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the end byte\r\n");
     exit(1);
   }
   io_close(data->fd);
   io_close(data->rd);
-  fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit output thread %lu\r\n",
-          (unsigned long)pthread_self());
+  fprintf(stdout, "\033[1;35mTHREAD\033[0m: Exit output thread\r\n");
   xwin_close();
   free(img);
   data->module_quit = true;
 }
 
-void exit_input_thread(data_t *data, int *r) {
-  *r = 1;
+void exit_input_thread(data_t *data) {
   pthread_mutex_lock(data->mtx);
   pthread_cond_broadcast(data->cond);
   pthread_mutex_unlock(data->mtx);
-  fprintf(stderr, "\033[1;35mTHREAD\033[0m: Exit input thread\r\n");
+  fprintf(stdout, "\033[1;35mTHREAD\033[0m: Exit input thread\r\n");
 }
 
 void handle_local_compute(data_t *data) {
@@ -657,7 +655,7 @@ void save_image_as_png(unsigned char *img, unsigned width, unsigned height,
                        const char *filename) {
   FILE *tmpFile = fopen("tmp.ppm", "wb"); // binary write
   if (tmpFile == NULL) {
-    fprintf(stderr, "Failed to open temp file");
+    fprintf(stderr, "\033[1;31mERROR\033[0m: Failed to open temp file");
     return;
   }
 
@@ -667,7 +665,7 @@ void save_image_as_png(unsigned char *img, unsigned width, unsigned height,
 
   // Write the image data
   if (fwrite(img, 3, width * height, tmpFile) != width * height) {
-    fprintf(stderr, "Failed to write image data");
+    fprintf(stderr, "\033[1;31mERROR\033[0m: Failed to write image data");
   }
 
   fclose(tmpFile);
