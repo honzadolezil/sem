@@ -53,6 +53,10 @@ typedef struct { // shared date structure;
   int num_chunks;
   int chunk_per_row;
 
+  message *msg;
+
+  
+
 } data_t;
 
 // constants definitions
@@ -127,6 +131,8 @@ int main(int argc, char *argv[]) {
   pthread_mutex_destroy(&mtx);
   pthread_cond_destroy(&cond);
   call_termios(1); // restore terminal settings
+  if(data.msg != NULL)
+    free(data.msg);
   return EXIT_SUCCESS;
 }
 
@@ -169,12 +175,12 @@ void *input_thread(void *d) {
   }
   if (!data->quit)
     printf("\033[1;34mINFO\033[0m: : Startup message recieved\r\n");
-
   while (!data->quit) {
     uint8_t c = '\0';
     io_getc_timeout(data->fd, 0, &c);
     process_message(data, c);
   }
+ 
   pthread_mutex_lock(data->mtx);
   data->quit = true;
   pthread_mutex_unlock(data->mtx);
@@ -292,6 +298,9 @@ message *buffer_parse(data_t *data, int message_type) {
     fprintf(stderr, "\033[1;31mERROR\033[0m:: Unable to allocate memory\r\n");
     exit(1);
   }
+  pthread_mutex_lock(data->mtx);
+  data->msg = msg;
+  pthread_mutex_unlock(data->mtx);
   msg->type = message_type;
   get_message_size(message_type, &len);
   if (!parse_message_buf(msg_buf, len, msg)) {
@@ -430,9 +439,9 @@ void process_message(data_t *data, uint8_t c) {
 
     data->chunk_per_row = data->n_re;
     data->num_chunks = data->n_re * data->n_re;
+    free(msg);
     pthread_mutex_unlock(data->mtx);
     pthread_cond_broadcast(data->cond);
-    free(msg);
   } else if (c == MSG_ABORT) {
     pthread_mutex_lock(data->mtx);
     data->abort = true;

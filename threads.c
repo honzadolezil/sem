@@ -198,6 +198,8 @@ void *input_thread(void *d) {
   while ((c = getchar()) != 'q') {
     process_input(c, data);
   }
+  handle_abort(data);
+  usleep(10000); // wait for potential abort of computation (against memory leaks)
   pthread_mutex_lock(data->mtx);
   data->quit = true;
   pthread_mutex_unlock(data->mtx);
@@ -587,8 +589,7 @@ void out_handle_compute_data(data_t *data, uint8_t *c, unsigned char *img) {
 }
 
 void exit_output_thread(data_t *data, unsigned char *img) {
-  message msg = {.type = MSG_ABORT};
-  send_message(data, &msg);
+  fsync(data->fd);
   if (io_putc(data->fd, 'q') != 1) { // sends exit byte
     fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to send the end byte\r\n");
     exit(1);
