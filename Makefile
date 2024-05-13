@@ -22,3 +22,8 @@ $(OBJS): %.o: %.c
 
 clean:
 	rm -f $(BINARIES) $(OBJS)
+
+
+ZIPFILE = archive.zip
+zip: clean all
+	zip $(ZIPFILE) *

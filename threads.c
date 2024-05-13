@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
       .refresh_screen = false,
       .compute_done = false,
       .module_quit = false,
-      .re = -1.6,   //default values
+      .re = -1.6, // default values
       .im = 1.1,
       .c_re = -0.4,
       .c_im = 0.6,
@@ -207,8 +207,8 @@ void *input_thread(void *d) {
     process_input(c, data);
   }
   handle_abort(data);
-  usleep(
-      SLEEPTIME); // wait for potential abort of computation (against memory leaks)
+  usleep(SLEEPTIME); // wait for potential abort of computation (against memory
+                     // leaks)
   pthread_mutex_lock(data->mtx);
   data->quit = true;
   pthread_mutex_unlock(data->mtx);
@@ -474,7 +474,8 @@ void open_files(data_t *data) {
 }
 
 unsigned char *allocate_image_buf(int width, int height) {
-  unsigned char *img = malloc(width * height * BYTES_PER_PIXEL); // 3 bytes per pixel for RGB
+  unsigned char *img =
+      malloc(width * height * BYTES_PER_PIXEL); // 3 bytes per pixel for RGB
   if (img == NULL) {
     fprintf(stderr,
             "\033[1;31mERROR\033[0m: Failed to allocate memory for image\n");
@@ -487,9 +488,9 @@ void default_redraw(unsigned char *img, int width, int height, data_t *data) {
   for (int y = 0; y < data->h; ++y) { // fill the image with some color
     for (int x = 0; x < data->w; ++x) {
       int idx = (y * data->w + x) * BYTES_PER_PIXEL;
-      img[idx] = DEFAULT_RED;    // red component
-      img[idx + 1] = DEFAULT_GREEN;  // green component
-      img[idx + 2] = DEFAULT_BLUE; // blue component
+      img[idx] = DEFAULT_RED;       // red component
+      img[idx + 1] = DEFAULT_GREEN; // green component
+      img[idx + 2] = DEFAULT_BLUE;  // blue component
     }
   }
   printf("\033[1;34mINFO\033[0m: Default image set\r\n");
@@ -576,9 +577,10 @@ void out_handle_compute_data(data_t *data, uint8_t *c, unsigned char *img) {
              SIZE_C_W; // starting pos for redraw - one chunk
   int y_im = (msg->data.compute_data.cid / data->n_im) * SIZE_C_H;
   data->cid = msg->data.compute_data.cid;
-  int x = x_im + i_re;             // x coordinate of the pixel in the image
-  int y = y_im + i_im;             // y coordinate of the pixel in the image
-  int idx = (y * data->w + x) * BYTES_PER_PIXEL; // index of the pixel in the 1D array
+  int x = x_im + i_re; // x coordinate of the pixel in the image
+  int y = y_im + i_im; // y coordinate of the pixel in the image
+  int idx =
+      (y * data->w + x) * BYTES_PER_PIXEL; // index of the pixel in the 1D array
   double t = (double)msg->data.compute_data.iter / data->n; // t is in [0, 1]
   img[idx] = RED(t);
   ;                                  // red component
@@ -587,7 +589,8 @@ void out_handle_compute_data(data_t *data, uint8_t *c, unsigned char *img) {
   if (data->cid != data->prev_cid) { // if the chunk is done (cid changed
     xwin_redraw(data->w, data->h, img);
   } else if ((data->cid == data->num_chunks - 1 &&
-              idx == BYTES_PER_PIXEL * data->w * data->h)) { // if the last chunk is done
+              idx == BYTES_PER_PIXEL * data->w *
+                         data->h)) { // if the last chunk is done
     xwin_redraw(data->w, data->h, img);
   }
   pthread_mutex_lock(data->mtx);
@@ -711,35 +714,27 @@ bool get_values_from_argv(int argc, char *argv[], data_t *data) {
     }
 
     if (integer_param == 1) {
-      pthread_mutex_lock(data->mtx);
       data->num_chunks = 144;
       data->w = 768;
       data->h = 576;
       data->n_re = 12;
       data->n_im = 12;
-      pthread_mutex_unlock(data->mtx);
     } else if (integer_param == 2) {
-      pthread_mutex_lock(data->mtx);
       data->num_chunks = 100;
       data->w = 640;
       data->h = 480;
       data->n_re = 10;
       data->n_im = 10;
-      pthread_mutex_unlock(data->mtx);
-
     } else if (integer_param == 3) {
-      pthread_mutex_lock(data->mtx);
       data->num_chunks = 13 * 13;
       data->w = 832;
       data->h = 624;
       data->n_re = 13;
       data->n_im = 13;
-      pthread_mutex_unlock(data->mtx);
     }
   } else {
     return false;
   }
-  pthread_mutex_lock(data->mtx);
   data->c_re = values[0];
   data->c_im = values[1];
   data->im = values[2];
@@ -747,6 +742,5 @@ bool get_values_from_argv(int argc, char *argv[], data_t *data) {
   data->d_im = values[4];
   data->d_re = values[5];
   data->n = n;
-  pthread_mutex_unlock(data->mtx);
   return true;
 }

@@ -195,7 +195,7 @@ void *calculation_thread(void *d) {
       q = data->quit;
     }
     if (!data->abort && !q) {
-      // compute julia set for each chunk (64x48 pixels on 640 x 480 screen)
+      // compute julia set for each chunk
       // send the result back to the input thread
 
       // init the starting points
@@ -339,8 +339,6 @@ void compute_julia_set(data_t *data) {
         pthread_mutex_lock(data->mtx);
         return;
       }
-      // printf("\033[1;34mINFO\033[0m: : Chunk %d: x = %d, y = %d, iter =
-      // %d\r\n", data->cid, x, y, iter);
       pthread_mutex_unlock(data->mtx);
       message msg = {
           .type = MSG_COMPUTE_DATA,
@@ -348,11 +346,9 @@ void compute_julia_set(data_t *data) {
                                 iter}}; // for each pixel = x, y in given chunk
       send_message(data, &msg);
       fsync(data->rd);
-      // printf("\033[1;34mINFO\033[0m: : sent compute data\r\n");
       pthread_mutex_lock(data->mtx);
     }
   }
-  // printf("\033[1;34m-->\033[0m: : Chunk %d is done\n\r", data->cid);
 }
 
 void create_threads(pthread_t threads[], void *(*thr_functions[])(void *),
@@ -410,8 +406,6 @@ void process_message(data_t *data, uint8_t c) {
     data->d_im = msg->data.set_compute.d_im;
     data->n = msg->data.set_compute.n;
     pthread_mutex_unlock(data->mtx);
-    printf("c_re = %lf, c_im = %lf, d_re = %lf, d_im = %lf, n = %d\r\n",
-           data->c_re, data->c_im, data->d_re, data->d_im, data->n);
     free(msg);
   } else if (c == MSG_COMPUTE) {
     printf("\033[1;34mINFO\033[0m: : received compute\r\n");

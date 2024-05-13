@@ -1,9 +1,0 @@
-nutno uvest funkcnost napovedy - help 
-vytvorit help a readme - pokud to nebudeme prezentovat, tak neni uznano
-
-
-threads - hlavni cast programu
-
-
-
-using module.c 
