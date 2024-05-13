@@ -199,7 +199,8 @@ void *input_thread(void *d) {
     process_input(c, data);
   }
   handle_abort(data);
-  usleep(10000); // wait for potential abort of computation (against memory leaks)
+  usleep(
+      10000); // wait for potential abort of computation (against memory leaks)
   pthread_mutex_lock(data->mtx);
   data->quit = true;
   pthread_mutex_unlock(data->mtx);
@@ -267,7 +268,7 @@ void *output_thread(void *d) {
   }
 
   exit_output_thread(data, img);
-  r=1;
+  r = 1;
   return &r;
 }
 
@@ -418,13 +419,12 @@ void handle_compute_start(data_t *data) {
 }
 
 void handle_refresh_screen(data_t *data) {
-  if (!data->compute_used){
+  if (!data->compute_used) {
     pthread_mutex_lock(data->mtx);
     data->refresh_screen = true;
     pthread_mutex_unlock(data->mtx);
   }
-  
-   
+
   else {
     printf("\033[1;33mWARNING\033[0m: Computing is underway - cant refresh "
            "window\r\n");
@@ -469,7 +469,8 @@ void open_files(data_t *data) {
 unsigned char *allocate_image_buf(int width, int height) {
   unsigned char *img = malloc(width * height * 3); // 3 bytes per pixel for RGB
   if (img == NULL) {
-    fprintf(stderr, "\033[1;31mERROR\033[0m: Failed to allocate memory for image\n");
+    fprintf(stderr,
+            "\033[1;31mERROR\033[0m: Failed to allocate memory for image\n");
     exit(1);
   }
   return img;
@@ -519,8 +520,9 @@ void process_input(char c, data_t *data) {
 
 void out_handle_version(data_t *data, uint8_t *c, unsigned char *img) {
   message *msg = buffer_parse(data, MSG_VERSION);
-  printf("\033[1;32mRECIEVED VERSION\033[0m: %c. %c. %c\r\n", msg->data.version.major,
-         msg->data.version.minor, msg->data.version.patch);
+  printf("\033[1;32mRECIEVED VERSION\033[0m: %c. %c. %c\r\n",
+         msg->data.version.major, msg->data.version.minor,
+         msg->data.version.patch);
   free(msg);
   *c = '\0';
 }

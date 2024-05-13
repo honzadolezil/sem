@@ -135,7 +135,7 @@ void *input_thread(void *d) {
   static int r = 0;
   // open comunication pipes
   data->fd = open_file(MY_DEVICE_OUT, true);
-   if (data->fd == EOF) {
+  if (data->fd == EOF) {
     fprintf(stderr, "\033[1;31mERROR\033[0m: Unable to open the file %s\n",
             MY_DEVICE_OUT);
     exit(1);
@@ -174,7 +174,7 @@ void *input_thread(void *d) {
     io_getc_timeout(data->fd, 0, &c);
     process_message(data, c);
   }
- 
+
   pthread_mutex_lock(data->mtx);
   data->quit = true;
   pthread_mutex_unlock(data->mtx);
