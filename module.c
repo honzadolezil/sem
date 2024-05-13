@@ -53,10 +53,6 @@ typedef struct { // shared date structure;
   int num_chunks;
   int chunk_per_row;
 
-  message *msg;
-
-  
-
 } data_t;
 
 // constants definitions
@@ -131,8 +127,6 @@ int main(int argc, char *argv[]) {
   pthread_mutex_destroy(&mtx);
   pthread_cond_destroy(&cond);
   call_termios(1); // restore terminal settings
-  if(data.msg != NULL)
-    free(data.msg);
   return EXIT_SUCCESS;
 }
 
@@ -298,9 +292,6 @@ message *buffer_parse(data_t *data, int message_type) {
     fprintf(stderr, "\033[1;31mERROR\033[0m:: Unable to allocate memory\r\n");
     exit(1);
   }
-  pthread_mutex_lock(data->mtx);
-  data->msg = msg;
-  pthread_mutex_unlock(data->mtx);
   msg->type = message_type;
   get_message_size(message_type, &len);
   if (!parse_message_buf(msg_buf, len, msg)) {
